@@ -18,7 +18,131 @@ type PricedItem = {
 
 const STORES = ["Walmart", "Whole Foods", "Target", "Instacart", "Kroger"];
 
-// Seeded random so results are stable per item name
+// Realistic US grocery base prices per standard unit (lb, each, gallon, etc.)
+const BASE_PRICES: Record<string, number> = {
+  // Proteins
+  chicken: 5.49,
+  beef: 6.99,
+  ground_beef: 5.99,
+  pork: 4.99,
+  salmon: 11.99,
+  tuna: 1.89,
+  shrimp: 9.99,
+  turkey: 4.49,
+  bacon: 6.99,
+  sausage: 4.99,
+  // Dairy
+  egg: 4.29,
+  eggs: 4.29,
+  milk: 3.49,
+  butter: 4.99,
+  cheese: 4.99,
+  yogurt: 1.29,
+  cream: 3.99,
+  sour_cream: 2.49,
+  cream_cheese: 3.29,
+  // Bread & Grains
+  bread: 3.49,
+  pasta: 1.69,
+  rice: 2.29,
+  tortilla: 3.49,
+  tortillas: 3.49,
+  cereal: 4.99,
+  oat: 3.99,
+  oats: 3.99,
+  flour: 3.49,
+  // Produce — fruits
+  apple: 1.49,
+  apples: 1.49,
+  banana: 0.29,
+  bananas: 0.89,
+  orange: 0.99,
+  oranges: 0.99,
+  lemon: 0.79,
+  lemons: 0.79,
+  lime: 0.59,
+  limes: 0.59,
+  strawberry: 3.99,
+  strawberries: 3.99,
+  blueberry: 4.49,
+  blueberries: 4.49,
+  grape: 2.99,
+  grapes: 2.99,
+  avocado: 1.19,
+  avocados: 1.19,
+  mango: 1.29,
+  pineapple: 2.99,
+  watermelon: 5.99,
+  peach: 1.49,
+  peaches: 1.49,
+  // Produce — vegetables
+  tomato: 1.99,
+  tomatoes: 1.99,
+  onion: 0.99,
+  onions: 0.99,
+  garlic: 0.79,
+  potato: 0.89,
+  potatoes: 3.49,
+  sweet_potato: 1.29,
+  carrot: 0.79,
+  carrots: 1.99,
+  broccoli: 2.29,
+  spinach: 3.49,
+  kale: 2.99,
+  lettuce: 2.49,
+  cucumber: 0.89,
+  pepper: 1.29,
+  peppers: 3.49,
+  mushroom: 2.99,
+  mushrooms: 2.99,
+  celery: 2.49,
+  corn: 0.79,
+  zucchini: 1.49,
+  cauliflower: 3.49,
+  // Canned & Pantry
+  beans: 1.19,
+  lentils: 1.99,
+  soup: 2.49,
+  tomato_sauce: 1.29,
+  olive_oil: 7.99,
+  vegetable_oil: 4.99,
+  vinegar: 2.49,
+  soy_sauce: 2.99,
+  ketchup: 3.29,
+  mustard: 2.29,
+  mayonnaise: 4.49,
+  mayo: 4.49,
+  salsa: 3.49,
+  peanut_butter: 3.99,
+  jelly: 3.49,
+  jam: 3.49,
+  honey: 5.99,
+  sugar: 3.49,
+  salt: 1.49,
+  pepper_spice: 3.49,
+  // Beverages
+  juice: 3.99,
+  orange_juice: 4.99,
+  coffee: 9.99,
+  tea: 4.49,
+  soda: 6.49,
+  water: 5.99,
+  sparkling_water: 5.49,
+  beer: 12.99,
+  wine: 12.99,
+  // Frozen
+  frozen_pizza: 6.99,
+  ice_cream: 4.99,
+  // Snacks
+  chips: 4.49,
+  crackers: 3.49,
+  popcorn: 3.49,
+  nuts: 7.99,
+  chocolate: 3.49,
+  granola_bar: 4.99,
+};
+
+// Seeded deterministic pseudo-random per item+store pair
 function seededRandom(seed: string): () => number {
   let h = 0;
   for (let i = 0; i < seed.length; i++) {
@@ -28,59 +152,58 @@ function seededRandom(seed: string): () => number {
     h ^= h << 13;
     h ^= h >> 17;
     h ^= h << 5;
-    return ((h >>> 0) / 4294967296);
+    return (h >>> 0) / 4294967296;
   };
 }
 
+function findBasePrice(itemName: string, rand: () => number): number {
+  const normalized = itemName.toLowerCase().trim().replace(/\s+/g, "_");
+
+  // Exact match (with underscores)
+  if (BASE_PRICES[normalized]) return BASE_PRICES[normalized];
+
+  // Try each word and common plural/singular variations
+  const words = normalized.split("_");
+  for (const word of words) {
+    const variations = [
+      word,
+      word + "s",                        // banana → bananas
+      word.replace(/ies$/, "y"),          // berries → berry
+      word.replace(/es$/, ""),            // tomatoes → tomato
+      word.replace(/s$/, ""),             // apples → apple
+    ];
+    for (const v of variations) {
+      if (BASE_PRICES[v]) return BASE_PRICES[v];
+    }
+  }
+
+  // Try combined key variations (e.g. "orange juice" → "orange_juice")
+  if (BASE_PRICES[normalized]) return BASE_PRICES[normalized];
+
+  // Reasonable fallback range for unknown items ($1.50–$6.50)
+  return 1.5 + rand() * 5;
+}
+
+// Store multipliers reflect real-world price positioning
+const STORE_MULTIPLIERS: Record<string, number> = {
+  Walmart: 0.87,
+  "Whole Foods": 1.38,
+  Target: 1.06,
+  Instacart: 1.18,  // includes service markup
+  Kroger: 0.94,
+};
+
 function mockPriceForStore(item: GroceryItem, store: string): StorePrice {
   const rand = seededRandom(`${item.name}|${store}`);
-
-  // Base price per unit — rough real-world ranges
-  const basePrices: Record<string, number> = {
-    eggs: 4.5,
-    milk: 3.8,
-    bread: 3.2,
-    butter: 5.5,
-    chicken: 6.5,
-    beef: 9.0,
-    salmon: 12.0,
-    rice: 2.5,
-    pasta: 1.8,
-    tomatoes: 2.2,
-    apples: 1.8,
-    bananas: 0.6,
-    avocado: 1.2,
-    spinach: 3.5,
-    broccoli: 2.4,
-    cheese: 5.0,
-    yogurt: 4.2,
-    orange_juice: 5.5,
-    coffee: 10.0,
-    olive_oil: 8.5,
-  };
-
-  const nameKey = item.name
-    .toLowerCase()
-    .replace(/\s+/g, "_")
-    .split("_")
-    .find((k) => basePrices[k]) ?? "";
-  const baseUnit = basePrices[nameKey] ?? 2.5 + rand() * 8;
-
-  // Store multipliers
-  const multipliers: Record<string, number> = {
-    Walmart: 0.88,
-    "Whole Foods": 1.35,
-    Target: 1.05,
-    Instacart: 1.15,
-    Kroger: 0.95,
-  };
-
-  const variance = 0.9 + rand() * 0.2;
-  const rawPrice = baseUnit * (multipliers[store] ?? 1) * variance * item.quantity;
+  const base = findBasePrice(item.name, rand);
+  const multiplier = STORE_MULTIPLIERS[store] ?? 1;
+  // ±7% variance per store so prices feel independently sourced
+  const variance = 0.93 + rand() * 0.14;
+  const rawPrice = base * multiplier * variance * item.quantity;
   const price = Math.round(rawPrice * 100) / 100;
 
-  // ~10% chance out of stock
-  const inStock = rand() > 0.1;
+  // ~8% chance out of stock
+  const inStock = rand() > 0.08;
 
   return { price: inStock ? price : null, inStock };
 }
@@ -101,20 +224,17 @@ export async function POST(request: Request) {
     return { ...item, prices };
   });
 
-  // Compute per-store totals (sum only in-stock items)
+  // Per-store totals — only count available items
   const totals: Record<string, number | null> = {};
   for (const store of STORES) {
     let total = 0;
-    let anyNull = false;
+    let hasOutOfStock = false;
     for (const item of pricedItems) {
       const p = item.prices[store].price;
-      if (p === null) {
-        anyNull = true;
-      } else {
-        total += p;
-      }
+      if (p === null) hasOutOfStock = true;
+      else total += p;
     }
-    totals[store] = anyNull ? null : Math.round(total * 100) / 100;
+    totals[store] = hasOutOfStock ? null : Math.round(total * 100) / 100;
   }
 
   return Response.json({ items: pricedItems, stores: STORES, totals });
