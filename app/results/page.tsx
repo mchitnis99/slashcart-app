@@ -88,27 +88,55 @@ export default function ResultsPage() {
               )}
             </div>
             <div className="flex flex-col items-end gap-2 shrink-0">
-              <span className="text-[#e2e8f0] font-semibold text-base">
-                {item.amazonPrice !== null ? `$${item.amazonPrice.toFixed(2)}` : "—"}
-              </span>
-              <a
-                href={`https://www.amazon.com/s?k=${encodeURIComponent(item.name)}&i=grocery`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[#22c55e] hover:text-[#16a34a] text-xs font-medium whitespace-nowrap transition-colors"
-              >
-                Buy on Amazon →
-              </a>
+              {item.amazonPrice !== null ? (
+                <>
+                  <span className="text-[#e2e8f0] font-semibold text-base">
+                    ${item.amazonPrice.toFixed(2)}
+                  </span>
+                  <a
+                    href={`https://www.amazon.com/s?k=${encodeURIComponent(item.name)}&i=grocery`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[#22c55e] hover:text-[#16a34a] text-xs font-medium whitespace-nowrap transition-colors"
+                  >
+                    Buy on Amazon →
+                  </a>
+                </>
+              ) : (
+                <>
+                  <span className="text-[#475569] text-sm">Price unavailable</span>
+                  <a
+                    href={`https://www.amazon.com/s?k=${encodeURIComponent(item.name)}&i=grocery`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[#64748b] hover:text-[#94a3b8] text-xs font-medium whitespace-nowrap transition-colors"
+                  >
+                    Search on Amazon →
+                  </a>
+                </>
+              )}
             </div>
           </div>
         ))}
       </div>
 
       {/* Total */}
-      <div className="rounded-xl border border-[#1e3050] bg-[#142036] px-4 py-4 flex items-center justify-between">
-        <span className="font-semibold text-[#e2e8f0]">Estimated total</span>
-        <span className="text-[#22c55e] font-bold text-xl">${total.toFixed(2)}</span>
-      </div>
+      {(() => {
+        const pricedCount = items.filter((i) => i.amazonPrice !== null).length;
+        return (
+          <div className="rounded-xl border border-[#1e3050] bg-[#142036] px-4 py-4 flex items-center justify-between">
+            <div>
+              <span className="font-semibold text-[#e2e8f0]">Estimated total</span>
+              {pricedCount < items.length && (
+                <p className="text-[#475569] text-xs mt-0.5">
+                  {pricedCount} of {items.length} items priced
+                </p>
+              )}
+            </div>
+            <span className="text-[#22c55e] font-bold text-xl">${total.toFixed(2)}</span>
+          </div>
+        );
+      })()}
 
       <p className="text-[#475569] text-xs text-center mt-6">
         Prices are estimates and may vary. Check Amazon for real-time accuracy.

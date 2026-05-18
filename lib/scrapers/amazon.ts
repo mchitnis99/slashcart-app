@@ -139,13 +139,43 @@ export async function scrapeAmazonPrice(itemName: string): Promise<AmazonResult 
     if (fallback) return fallback;
   }
 
-  // Hardcoded prices for products Amazon consistently blocks scraping for
+  // Hardcoded prices for products Amazon consistently blocks scraping for.
+  // More-specific phrases must appear before their substrings.
   const KNOWN_PRICES: Array<[string, number]> = [
-    ["tide pods",       19.99],
-    ["tide",            14.99],
-    ["laundry pods",    17.99],
-    ["dishwasher pods", 12.99],
-    ["bounty",          18.99],
+    // Laundry
+    ["tide pods",            19.99],
+    ["laundry pods",         17.99],
+    ["tide",                 14.99],
+    // Dishwasher
+    ["dishwasher pods",      12.99],
+    ["cascade",              12.99],
+    // Dish soap
+    ["dawn dish soap",        3.99],
+    // Paper products
+    ["bounty paper towels",  18.99],
+    ["charmin toilet paper", 24.99],
+    ["bounty",               18.99],
+    ["charmin",              24.99],
+    // Bags & wrap
+    ["glad trash bags",      14.99],
+    ["reynolds wrap",         8.99],
+    ["ziploc bags",           8.99],
+    // Coffee
+    ["maxwell house",         9.99],
+    ["folgers",              10.99],
+    ["coffee",               12.99],
+    // Pantry staples
+    ["chicken broth",         3.49],
+    ["beef broth",            3.49],
+    ["canned tomatoes",       2.49],
+    ["tomato sauce",          1.99],
+    ["coconut milk",          3.49],
+    ["vegetable oil",         5.99],
+    ["olive oil",             9.99],
+    ["spaghetti",             1.99],
+    ["penne",                 1.99],
+    ["pasta",                 1.99],
+    ["rice",                  4.99],
   ];
   const lower = itemName.toLowerCase();
   for (const [term, price] of KNOWN_PRICES) {
