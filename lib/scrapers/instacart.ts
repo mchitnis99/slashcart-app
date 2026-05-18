@@ -4,19 +4,14 @@ export type InstacartStoreResult = {
   productName: string;
 };
 
-type RawStore = {
-  name?: string;
-  retailer_name?: string;
-  slug?: string;
-  id?: string | number;
-};
-
-type RawProduct = {
-  name?: string;
-  title?: string;
-  pricing?: { price?: number; display_price?: string };
-  price?: number | string;
-  display_price?: string;
+const SHOP_ID_MAP: Record<string, { name: string }> = {
+  "75":     { name: "Whole Foods"  },
+  "9501":   { name: "Walmart"      },
+  "12":     { name: "Costco"       },
+  "521051": { name: "Aldi"         },
+  "399004": { name: "Stop & Shop"  },
+  "514691": { name: "Target"       },
+  "483360": { name: "CVS"          },
 };
 
 function parsePrice(raw: unknown): number | null {
@@ -28,341 +23,124 @@ function parsePrice(raw: unknown): number | null {
   return null;
 }
 
-function extractProductFromJson(json: unknown): { name: string; price: number } | null {
-  const j = json as Record<string, unknown>;
-  const products: RawProduct[] =
-    (j?.data as Record<string, unknown>)?.products as RawProduct[] ??
-    (j?.data as Record<string, unknown>)?.items as RawProduct[] ??
-    (j?.products as RawProduct[]) ??
-    (j?.items as RawProduct[]) ??
-    [];
-
-  if (!Array.isArray(products)) return null;
-
-  for (const p of products) {
-    const raw =
-      p?.pricing?.price ??
-      p?.price ??
-      p?.display_price ??
-      p?.pricing?.display_price;
-    const price = parsePrice(raw);
-    if (price !== null) {
-      return { name: p?.name ?? p?.title ?? "", price };
-    }
-  }
-  return null;
-}
-
-function extractProductFromHtml(html: string): { name: string; price: number } | null {
-  // Instacart is a Next.js app — product data lives in __NEXT_DATA__
-  const match = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
-  if (!match) return null;
-
-  try {
-    const json = JSON.parse(match[1]) as Record<string, unknown>;
-    // Walk known paths where Instacart embeds search results
-    const pageProps = (json?.props as Record<string, unknown>)?.pageProps as Record<string, unknown>;
-    const candidates = [
-      pageProps?.searchResults,
-      pageProps?.initialState,
-      pageProps?.initialData,
-    ];
-
-    for (const node of candidates) {
-      const result = extractProductFromJson(node);
-      if (result) return result;
-    }
-
-    // Broader walk: any array named "products" or "items" anywhere in pageProps
-    const found = walkForProducts(pageProps);
-    if (found) return found;
-  } catch {}
-
-  return null;
-}
-
-function walkForProducts(node: unknown, depth = 0): { name: string; price: number } | null {
-  if (depth > 6 || node === null || typeof node !== "object") return null;
-
-  const obj = node as Record<string, unknown>;
-
-  for (const key of ["products", "items", "searchResults", "results"]) {
-    if (Array.isArray(obj[key])) {
-      const result = extractProductFromJson({ products: obj[key] });
-      if (result) return result;
-    }
-  }
-
-  for (const val of Object.values(obj)) {
-    const result = walkForProducts(val, depth + 1);
-    if (result) return result;
-  }
-
-  return null;
-}
-
-function extractStoresFromJson(body: string): RawStore[] {
-  try {
-    const json = JSON.parse(body) as Record<string, unknown>;
-    const raw =
-      (json?.data as Record<string, unknown>)?.stores ??
-      (json?.data as Record<string, unknown>)?.available_stores ??
-      (json?.data as Record<string, unknown>)?.retailers ??
-      json?.stores ??
-      json?.retailers ??
-      json?.data;
-    return Array.isArray(raw) ? (raw as RawStore[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-// Recursively collect every object that has a shopId field.
-// Uses a Map keyed by shopId to deduplicate.
-function walkForShopIds(
+// Walk the full JSON tree collecting one priced product per known store.
+function walkForSearchResults(
   node: unknown,
-  found: Map<string, RawStore> = new Map(),
+  byStore: Map<string, InstacartStoreResult> = new Map(),
   depth = 0
-): Map<string, RawStore> {
-  if (depth > 8 || node === null || typeof node !== "object") return found;
+): Map<string, InstacartStoreResult> {
+  if (depth > 10 || node === null || typeof node !== "object") return byStore;
 
   if (Array.isArray(node)) {
-    for (const item of node) walkForShopIds(item, found, depth + 1);
-    return found;
+    for (const item of node) walkForSearchResults(item, byStore, depth + 1);
+    return byStore;
   }
 
   const obj = node as Record<string, unknown>;
-  if (obj.shopId !== undefined) {
-    const shopId = String(obj.shopId);
-    if (!found.has(shopId)) {
-      const name =
-        (obj.name as string) ??
-        (obj.storeName as string) ??
-        (obj.retailerName as string) ??
-        (obj.displayName as string) ??
-        (obj.retailer_name as string);
-      // Prefer explicit slug fields; fall back to shopId which Instacart often
-      // accepts as a URL segment (e.g. /store/123/storefront_search)
-      const slug =
-        (obj.slug as string) ??
-        (obj.urlSlug as string) ??
-        (obj.url_slug as string) ??
-        (obj.storeSlug as string) ??
-        (obj.handle as string) ??
-        shopId;
-      found.set(shopId, { name, slug, id: shopId });
+
+  const rawPrice =
+    (obj.pricing as Record<string, unknown>)?.price ??
+    obj.price ??
+    (obj.pricing as Record<string, unknown>)?.display_price ??
+    obj.display_price;
+
+  const price = parsePrice(rawPrice);
+
+  if (price !== null) {
+    // Resolve store name from shopId first, then from embedded retailer name
+    const shopId =
+      obj.shopId ??
+      (obj.retailer as Record<string, unknown>)?.shopId ??
+      (obj.store as Record<string, unknown>)?.shopId ??
+      (obj.retailerInfo as Record<string, unknown>)?.shopId;
+
+    let storeName: string | undefined;
+
+    if (shopId !== undefined) {
+      storeName = SHOP_ID_MAP[String(shopId)]?.name;
+    }
+
+    if (!storeName) {
+      const retailerName =
+        (obj.retailer as Record<string, unknown>)?.name as string ??
+        (obj.store as Record<string, unknown>)?.name as string ??
+        obj.retailerName as string ??
+        obj.storeName as string;
+      if (retailerName) {
+        storeName = Object.values(SHOP_ID_MAP).find((v) =>
+          retailerName.toLowerCase().includes(v.name.toLowerCase()) ||
+          v.name.toLowerCase().includes(retailerName.toLowerCase())
+        )?.name;
+      }
+    }
+
+    const productName =
+      obj.name as string ??
+      obj.title as string ??
+      obj.productName as string ??
+      "";
+
+    if (storeName && productName && !byStore.has(storeName)) {
+      byStore.set(storeName, { store: storeName, price, productName });
     }
   }
 
-  for (const val of Object.values(obj)) walkForShopIds(val, found, depth + 1);
-  return found;
+  for (const val of Object.values(obj)) walkForSearchResults(val, byStore, depth + 1);
+  return byStore;
 }
 
-function decodeAndExtractStores(content: string, source: string): RawStore[] {
-  let decoded: string;
-  try {
-    decoded = decodeURIComponent(content.trim());
-  } catch {
-    return [];
-  }
-
-  let json: unknown;
-  try {
-    json = JSON.parse(decoded);
-  } catch {
-    // Strip leading variable assignment or trailing semicolons e.g. "window.__state={...};"
-    const stripped = decoded.replace(/^[^{[]*/, "").replace(/[^}\]]*$/, "");
-    try {
-      json = JSON.parse(stripped);
-    } catch {
-      return [];
-    }
-  }
-
-  const stores = [...walkForShopIds(json).values()];
-  if (stores.length > 0) {
-    console.log(`[instacart] Decoded ${stores.length} stores from ${source}`);
-  }
-  return stores;
+function extractResultsFromData(data: unknown): InstacartStoreResult[] {
+  return [...walkForSearchResults(data).values()];
 }
 
-// Look for URL-encoded state blobs that contain shopId.
-// URL-encoded content never contains literal "<", so [^<]+ is safe and fast.
-function extractStoresFromNodeState(html: string): RawStore[] {
-  // 1. Known script tag IDs Instacart has used
-  for (const id of ["node-state", "redux-state", "initial-state", "app-state", "server-state"]) {
-    const re = new RegExp(`<script[^>]*id="${id}"[^>]*>([^<]+)<\\/script>`);
-    const m = html.match(re);
-    if (m) {
-      const stores = decodeAndExtractStores(m[1], `<script id="${id}">`);
-      if (stores.length > 0) return stores;
-    }
-  }
-
-  // 2. Any script whose raw content contains URL-encoded "shopId"
-  const re = /<script[^>]*>([^<]*%22shopId%22[^<]*)<\/script>/g;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(html)) !== null) {
-    const stores = decodeAndExtractStores(m[1], "anonymous script with %22shopId%22");
-    if (stores.length > 0) return stores;
-  }
-
-  return [];
-}
-
-function extractStoresFromHtml(html: string): RawStore[] {
-  // Try URL-encoded node-state blobs first (newer Instacart pattern)
-  const fromNodeState = extractStoresFromNodeState(html);
-  if (fromNodeState.length > 0) return fromNodeState;
-
-  // Fall back to __NEXT_DATA__ JSON
+function extractResultsFromHtml(html: string): InstacartStoreResult[] {
   const match = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
   if (!match) return [];
   try {
-    const json = JSON.parse(match[1]) as Record<string, unknown>;
-    const pageProps = (json?.props as Record<string, unknown>)?.pageProps as Record<string, unknown>;
-    const candidates = [
-      pageProps?.stores,
-      pageProps?.retailers,
-      pageProps?.availableStores,
-      (pageProps?.initialState as Record<string, unknown>)?.stores,
-      (pageProps?.initialData as Record<string, unknown>)?.stores,
-    ];
-    for (const c of candidates) {
-      if (Array.isArray(c) && c.length > 0) return c as RawStore[];
-    }
-    const found = walkForStores(pageProps);
-    if (found.length > 0) return found;
-  } catch {}
-  return [];
-}
-
-function walkForStores(node: unknown, depth = 0): RawStore[] {
-  if (depth > 5 || node === null || typeof node !== "object") return [];
-  const obj = node as Record<string, unknown>;
-  for (const key of ["stores", "retailers", "availableStores", "available_stores"]) {
-    if (Array.isArray(obj[key]) && (obj[key] as unknown[]).length > 0) {
-      return obj[key] as RawStore[];
-    }
+    return extractResultsFromData(JSON.parse(match[1]));
+  } catch {
+    return [];
   }
-  for (const val of Object.values(obj)) {
-    const found = walkForStores(val, depth + 1);
-    if (found.length > 0) return found;
-  }
-  return [];
-}
-
-async function fetchStoresForZip(zipCode: string, apiKey: string): Promise<RawStore[]> {
-  const encoded = encodeURIComponent(zipCode);
-
-  const endpoints: Array<{ label: string; url: string; render: boolean }> = [
-    {
-      label: "/api/v2/stores",
-      url: `https://www.instacart.com/api/v2/stores?zip_code=${encoded}`,
-      render: false,
-    },
-    {
-      label: "/retailers",
-      url: `https://www.instacart.com/retailers?zip_code=${encoded}`,
-      render: false,
-    },
-    {
-      label: "/ (homepage __NEXT_DATA__)",
-      url: `https://www.instacart.com/?zip_code=${encoded}`,
-      render: true,
-    },
-  ];
-
-  for (const ep of endpoints) {
-    const scraperUrl =
-      `http://api.scraperapi.com?api_key=${apiKey}` +
-      `&url=${encodeURIComponent(ep.url)}` +
-      (ep.render ? "&render=true" : "");
-
-    let res: Response;
-    try {
-      res = await fetch(scraperUrl);
-    } catch (err) {
-      console.error(`[instacart] Network error fetching ${ep.label}:`, err);
-      continue;
-    }
-
-    console.log(`[instacart] ${ep.label} → status ${res.status} for zip ${zipCode}`);
-
-    if (!res.ok) {
-      console.error(`[instacart] ${ep.label} failed: ${res.status} ${res.statusText}`);
-      continue;
-    }
-
-    const body = await res.text();
-    console.log(`[instacart] ${ep.label} full response:\n${body}`);
-
-    const stores = ep.render ? extractStoresFromHtml(body) : extractStoresFromJson(body);
-    console.log(`[instacart] ${ep.label} parsed ${stores.length} stores`);
-    if (stores.length > 0) return stores;
-  }
-
-  return [];
 }
 
 export async function scrapeInstacartPrices(
   itemName: string,
   zipCode: string
 ): Promise<InstacartStoreResult[]> {
-  const apiKey = process.env.SCRAPERAPI_KEY;
+  void zipCode; // global search is location-inferred by Instacart; no zip param supported
 
-  // Step 1: fetch stores available for this zip — try multiple endpoints
-  let stores: RawStore[] = [];
+  const apiKey = process.env.SCRAPERAPI_KEY;
+  const searchApiUrl = `https://www.instacart.com/store/s?k=${encodeURIComponent(itemName)}`;
+  const searchUrl =
+    `http://api.scraperapi.com?api_key=${apiKey}` +
+    `&url=${encodeURIComponent(searchApiUrl)}&render=true`;
+
+  console.log(`[instacart] Global search: ${searchApiUrl}`);
+
+  let res: Response;
   try {
-    stores = await fetchStoresForZip(zipCode, apiKey ?? "");
-    console.log(`[instacart] Total stores found for zip ${zipCode}: ${stores.length}`);
+    res = await fetch(searchUrl);
   } catch (err) {
-    console.error(`[instacart] fetchStoresForZip threw:`, err);
+    console.error(`[instacart] Network error:`, err);
+    return [];
   }
 
-  if (stores.length === 0) return [];
+  console.log(`[instacart] Status: ${res.status} for "${itemName}"`);
+  if (!res.ok) {
+    console.error(`[instacart] Failed: ${res.status} ${res.statusText}`);
+    return [];
+  }
 
-  // Step 2: search each store for the item in parallel
-  const results = await Promise.all(
-    stores.map(async (store): Promise<InstacartStoreResult | null> => {
-      const storeName = store.name ?? store.retailer_name ?? "Unknown";
-      const storeSlug = store.slug ?? String(store.id ?? "");
-      if (!storeSlug) return null;
+  const body = await res.text();
+  console.log(`[instacart] Response preview: ${body.slice(0, 500)}`);
 
-      try {
-        const searchApiUrl = `https://www.instacart.com/store/${storeSlug}/storefront_search?query=${encodeURIComponent(itemName)}`;
-        const searchUrl = `http://api.scraperapi.com?api_key=${apiKey}&url=${encodeURIComponent(searchApiUrl)}&render=true`;
+  let results: InstacartStoreResult[];
+  try {
+    results = extractResultsFromData(JSON.parse(body));
+  } catch {
+    results = extractResultsFromHtml(body);
+  }
 
-        const searchRes = await fetch(searchUrl);
-        console.log(`[instacart] Search status: ${searchRes.status} for "${itemName}" at ${storeName}`);
-        if (!searchRes.ok) return null;
-
-        const body = await searchRes.text();
-        console.log(`[instacart] Search preview for ${storeName}: ${body.slice(0, 500)}`);
-
-        // Try JSON first (in case this endpoint returns raw API data)
-        let product: { name: string; price: number } | null = null;
-        try {
-          const json = JSON.parse(body);
-          product = extractProductFromJson(json);
-        } catch {
-          // Rendered HTML — parse __NEXT_DATA__
-          product = extractProductFromHtml(body);
-        }
-
-        if (!product) return null;
-
-        return {
-          store: storeName,
-          price: product.price,
-          productName: product.name || itemName,
-        };
-      } catch (err) {
-        console.error(`[instacart] Error searching ${storeName}:`, err);
-        return null;
-      }
-    })
-  );
-
-  return results.filter((r): r is InstacartStoreResult => r !== null);
+  console.log(`[instacart] Found ${results.length} store results for "${itemName}":`, results);
+  return results;
 }
