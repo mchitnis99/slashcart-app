@@ -4,103 +4,26 @@ type GroceryItem = {
   unit: string;
 };
 
-type StorePrice = {
-  price: number | null;
-  inStock: boolean;
-};
-
 type PricedItem = {
   name: string;
   quantity: number;
   unit: string;
-  prices: Record<string, StorePrice>;
+  amazonPrice: number | null;
+  productName: string;
 };
-
-const STORES = ["Walmart", "Whole Foods", "Target", "Instacart", "Kroger"];
 
 // Realistic US grocery base prices per standard unit (lb, each, gallon, etc.)
 const BASE_PRICES: Record<string, number> = {
-  // Proteins
-  chicken: 5.49,
-  beef: 6.99,
-  ground_beef: 5.99,
-  pork: 4.99,
-  salmon: 11.99,
-  tuna: 1.89,
-  shrimp: 9.99,
-  turkey: 4.49,
-  bacon: 6.99,
-  sausage: 4.99,
-  // Dairy
-  egg: 4.29,
-  eggs: 4.29,
-  milk: 3.49,
-  butter: 4.99,
-  cheese: 4.99,
-  yogurt: 2.19,
-  low_fat_yogurt: 2.19,
-  greek_yogurt: 2.49,
-  cream: 3.99,
-  sour_cream: 2.49,
-  cream_cheese: 3.29,
-  // Bread & Grains
-  bread: 3.49,
+  // Pantry — dry goods
   pasta: 1.69,
   rice: 2.29,
-  tortilla: 3.49,
-  tortillas: 3.49,
-  cereal: 4.99,
+  flour: 3.49,
   oat: 3.99,
   oats: 3.99,
-  flour: 3.49,
-  // Produce — fruits
-  apple: 1.49,
-  apples: 1.49,
-  banana: 0.29,
-  bananas: 0.89,
-  orange: 0.99,
-  oranges: 0.99,
-  lemon: 0.79,
-  lemons: 0.79,
-  lime: 0.59,
-  limes: 0.59,
-  strawberry: 3.99,
-  strawberries: 3.99,
-  blueberry: 4.49,
-  blueberries: 4.49,
-  grape: 2.99,
-  grapes: 2.99,
-  avocado: 1.19,
-  avocados: 1.19,
-  mango: 1.29,
-  pineapple: 2.99,
-  watermelon: 5.99,
-  peach: 1.49,
-  peaches: 1.49,
-  // Produce — vegetables
-  tomato: 1.99,
-  tomatoes: 1.99,
-  onion: 0.99,
-  onions: 0.99,
-  garlic: 0.79,
-  potato: 0.89,
-  potatoes: 3.49,
-  sweet_potato: 1.29,
-  carrot: 0.79,
-  carrots: 1.99,
-  broccoli: 2.29,
-  spinach: 3.49,
-  kale: 2.99,
-  lettuce: 2.49,
-  cucumber: 0.89,
-  pepper: 1.29,
-  peppers: 3.49,
-  mushroom: 2.99,
-  mushrooms: 2.99,
-  celery: 2.49,
-  corn: 0.79,
-  zucchini: 1.49,
-  cauliflower: 3.49,
+  cereal: 4.99,
+  bread: 3.49,
+  tortilla: 3.49,
+  tortillas: 3.49,
   // Canned & Pantry
   beans: 1.19,
   lentils: 1.99,
@@ -121,7 +44,7 @@ const BASE_PRICES: Record<string, number> = {
   honey: 5.99,
   sugar: 3.49,
   salt: 1.49,
-  pepper_spice: 3.49,
+  tuna: 1.89,
   // Beverages
   juice: 3.99,
   orange_juice: 4.99,
@@ -130,8 +53,6 @@ const BASE_PRICES: Record<string, number> = {
   soda: 6.49,
   water: 5.99,
   sparkling_water: 5.49,
-  beer: 12.99,
-  wine: 12.99,
   // Frozen
   frozen_pizza: 6.99,
   ice_cream: 4.99,
@@ -142,6 +63,35 @@ const BASE_PRICES: Record<string, number> = {
   nuts: 7.99,
   chocolate: 3.49,
   granola_bar: 4.99,
+  // Spices / condiments
+  pepper_spice: 3.49,
+  spice: 3.99,
+  seasoning: 3.99,
+  // Household / cleaning
+  tide: 19.99,
+  tide_pods: 19.99,
+  laundry_pods: 19.99,
+  laundry_detergent: 14.99,
+  detergent: 14.99,
+  dish_soap: 3.99,
+  dish_detergent: 3.99,
+  dishwasher_pods: 12.99,
+  dishwasher_detergent: 12.99,
+  paper_towels: 8.99,
+  paper_towel: 8.99,
+  toilet_paper: 12.99,
+  trash_bags: 9.99,
+  garbage_bags: 9.99,
+  aluminum_foil: 3.99,
+  plastic_wrap: 3.49,
+  ziploc_bags: 4.99,
+  ziplock_bags: 4.99,
+  // Baking
+  baking_soda: 1.29,
+  baking_powder: 2.49,
+  vanilla: 4.99,
+  cocoa: 4.49,
+  chocolate_chips: 3.99,
 };
 
 // Seeded deterministic pseudo-random per item+store pair
@@ -161,75 +111,52 @@ function seededRandom(seed: string): () => number {
 function findBasePrice(itemName: string, rand: () => number): number {
   const normalized = itemName.toLowerCase().trim().replace(/\s+/g, "_");
 
-  // Exact match (with underscores)
   if (BASE_PRICES[normalized]) return BASE_PRICES[normalized];
 
-  // Try each word and common plural/singular variations
   const words = normalized.split("_");
   for (const word of words) {
     const variations = [
       word,
-      word + "s",                        // banana → bananas
-      word.replace(/ies$/, "y"),          // berries → berry
-      word.replace(/es$/, ""),            // tomatoes → tomato
-      word.replace(/s$/, ""),             // apples → apple
+      word + "s",
+      word.replace(/ies$/, "y"),
+      word.replace(/es$/, ""),
+      word.replace(/s$/, ""),
     ];
     for (const v of variations) {
       if (BASE_PRICES[v]) return BASE_PRICES[v];
     }
   }
 
-  // Try combined key variations (e.g. "orange juice" → "orange_juice")
-  if (BASE_PRICES[normalized]) return BASE_PRICES[normalized];
-
-  // Reasonable fallback range for unknown items ($1.50–$6.50)
-  return 1.5 + rand() * 5;
+  // Fallback: household/pantry unknowns skew higher than food unknowns
+  return 3.0 + rand() * 10;
 }
 
-// Store multipliers reflect real-world price positioning
-const STORE_MULTIPLIERS: Record<string, number> = {
-  Walmart: 0.87,
-  "Whole Foods": 1.38,
-  Target: 1.06,
-  Instacart: 1.18,  // includes service markup
-  Kroger: 0.94,
-};
-
-// Units that describe package size rather than quantity of packages.
-// "16oz yogurt" means 1 container, not 16 separate items.
+const AMAZON_MULTIPLIER = 1.10;
 const PACKAGE_SIZE_UNITS = new Set(["oz", "fl oz", "floz", "ml", "g", "mg", "cl"]);
 
-function mockPriceForStore(item: GroceryItem, store: string): StorePrice {
-  const rand = seededRandom(`${item.name}|${store}`);
+function mockAmazonPrice(item: GroceryItem): number {
+  const rand = seededRandom(`${item.name}|Amazon`);
   const base = findBasePrice(item.name, rand);
-  const multiplier = STORE_MULTIPLIERS[store] ?? 1;
-  // ±7% variance per store so prices feel independently sourced
   const variance = 0.93 + rand() * 0.14;
   const normalizedUnit = item.unit.toLowerCase().trim().replace(/\s+/g, "");
   const qty = PACKAGE_SIZE_UNITS.has(normalizedUnit) ? 1 : item.quantity;
-  const rawPrice = base * multiplier * variance * qty;
-  const price = Math.round(rawPrice * 100) / 100;
-
-  // ~8% chance out of stock
-  const inStock = rand() > 0.08;
-
-  return { price: inStock ? price : null, inStock };
+  return Math.round(base * AMAZON_MULTIPLIER * variance * qty * 100) / 100;
 }
 
-type InstacartResult = { store: string; price: number; productName: string };
-
-// Scrape Instacart once per item; resolve [] on timeout/failure so caller can fall back.
-async function tryInstacartScrape(
+async function tryAmazonScrape(
   itemName: string,
-  zipCode: string | undefined,
   timeoutMs: number
-): Promise<InstacartResult[]> {
-  if (!zipCode) return [];
-  const { scrapeInstacartPrices } = await import("@/lib/scrapers/instacart");
-  const timeout = new Promise<InstacartResult[]>((resolve) =>
-    setTimeout(() => resolve([]), timeoutMs)
-  );
-  return Promise.race([scrapeInstacartPrices(itemName, zipCode), timeout]);
+): Promise<{ price: number; productName: string } | null> {
+  const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs));
+  try {
+    const { scrapeAmazonPrice } = await import("@/lib/scrapers/amazon");
+    const result = await Promise.race([scrapeAmazonPrice(itemName), timeout]);
+    if (!result) return null;
+    return { price: result.price, productName: result.name };
+  } catch (err) {
+    console.error(`[search-prices] Amazon scrape error:`, err);
+    return null;
+  }
 }
 
 export async function POST(request: Request) {
@@ -239,56 +166,28 @@ export async function POST(request: Request) {
   }
 
   const items: GroceryItem[] = body.items;
-  const zipCode: string | undefined = body.zipCode || undefined;
 
-  // Scrape all items from Instacart in parallel (30s timeout per item)
-  const scrapeResults = await Promise.all(
-    items.map((item) => tryInstacartScrape(item.name, zipCode, 30000))
-  );
+  // Scrape items sequentially with 1s delay between requests to avoid 429s
+  const pricedItems: PricedItem[] = [];
 
-  // Union store names from all real results; fall back to mock store list if none
-  const storeSet = new Set<string>();
-  for (const result of scrapeResults) {
-    for (const r of result) storeSet.add(r.store);
-  }
-  const useMock = storeSet.size === 0;
-  const stores = useMock ? STORES : [...storeSet];
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    if (i > 0) await new Promise((r) => setTimeout(r, 1000));
 
-  const pricedItems: PricedItem[] = items.map((item, i) => {
-    const prices: Record<string, StorePrice> = {};
-    const scraped = scrapeResults[i];
-
-    for (const store of stores) {
-      if (useMock || scraped.length === 0) {
-        // Entire scrape failed — mock this item
-        prices[store] = mockPriceForStore(item, store);
-        console.log(`MOCKED: ${item.name} at ${store}`);
-      } else {
-        const match = scraped.find((r) => r.store === store);
-        if (match) {
-          console.log(`SCRAPED: ${item.name} at ${store} → $${match.price}`);
-          prices[store] = { price: match.price, inStock: true };
-        } else {
-          prices[store] = { price: null, inStock: false };
-        }
-      }
+    const scraped = await tryAmazonScrape(item.name, 15000);
+    if (scraped) {
+      console.log(`SCRAPED: ${item.name} → $${scraped.price} (${scraped.productName})`);
+      pricedItems.push({ ...item, amazonPrice: scraped.price, productName: scraped.productName });
+    } else {
+      const price = mockAmazonPrice(item);
+      console.log(`MOCKED: ${item.name} → $${price}`);
+      pricedItems.push({ ...item, amazonPrice: price, productName: item.name });
     }
-
-    return { ...item, prices };
-  });
-
-  // Per-store totals — only count available items
-  const totals: Record<string, number | null> = {};
-  for (const store of stores) {
-    let total = 0;
-    let hasOutOfStock = false;
-    for (const item of pricedItems) {
-      const p = item.prices[store].price;
-      if (p === null) hasOutOfStock = true;
-      else total += p;
-    }
-    totals[store] = hasOutOfStock ? null : Math.round(total * 100) / 100;
   }
 
-  return Response.json({ items: pricedItems, stores, totals });
+  const total = Math.round(
+    pricedItems.reduce((sum, item) => sum + (item.amazonPrice ?? 0), 0) * 100
+  ) / 100;
+
+  return Response.json({ items: pricedItems, total });
 }
