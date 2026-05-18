@@ -216,22 +216,20 @@ function mockPriceForStore(item: GroceryItem, store: string): StorePrice {
   return { price: inStock ? price : null, inStock };
 }
 
-// Attempt a real Walmart scrape; resolve null if it takes longer than timeoutMs
-// or fails for any reason, so the caller can fall back to mock data.
-async function tryWalmartScrape(
+type InstacartResult = { store: string; price: number; productName: string };
+
+// Scrape Instacart once per item; resolve [] on timeout/failure so caller can fall back.
+async function tryInstacartScrape(
   itemName: string,
   zipCode: string | undefined,
   timeoutMs: number
-): Promise<StorePrice | null> {
-  const { scrapeWalmartPrice } = await import("@/lib/scrapers/walmart");
-
-  const scraped = await Promise.race<Awaited<ReturnType<typeof scrapeWalmartPrice>>>([
-    scrapeWalmartPrice(itemName, zipCode),
-    new Promise((resolve) => setTimeout(() => resolve(null), timeoutMs)),
-  ]);
-
-  if (!scraped) return null;
-  return { price: scraped.price, inStock: scraped.inStock };
+): Promise<InstacartResult[]> {
+  if (!zipCode) return [];
+  const { scrapeInstacartPrices } = await import("@/lib/scrapers/instacart");
+  const timeout = new Promise<InstacartResult[]>((resolve) =>
+    setTimeout(() => resolve([]), timeoutMs)
+  );
+  return Promise.race([scrapeInstacartPrices(itemName, zipCode), timeout]);
 }
 
 export async function POST(request: Request) {
@@ -243,34 +241,45 @@ export async function POST(request: Request) {
   const items: GroceryItem[] = body.items;
   const zipCode: string | undefined = body.zipCode || undefined;
 
-  const pricedItems: PricedItem[] = await Promise.all(
-    items.map(async (item) => {
-      const prices: Record<string, StorePrice> = {};
+  // Scrape all items from Instacart in parallel (30s timeout per item)
+  const scrapeResults = await Promise.all(
+    items.map((item) => tryInstacartScrape(item.name, zipCode, 30000))
+  );
 
-      // Real scrape for Walmart; 10s timeout before falling back to mock
-      const walmartLive = await tryWalmartScrape(item.name, zipCode, 10000);
-      if (walmartLive) {
-        console.log(`SCRAPED: ${item.name} → $${walmartLive.price}`);
-        prices["Walmart"] = walmartLive;
+  // Union store names from all real results; fall back to mock store list if none
+  const storeSet = new Set<string>();
+  for (const result of scrapeResults) {
+    for (const r of result) storeSet.add(r.store);
+  }
+  const useMock = storeSet.size === 0;
+  const stores = useMock ? STORES : [...storeSet];
+
+  const pricedItems: PricedItem[] = items.map((item, i) => {
+    const prices: Record<string, StorePrice> = {};
+    const scraped = scrapeResults[i];
+
+    for (const store of stores) {
+      if (useMock || scraped.length === 0) {
+        // Entire scrape failed — mock this item
+        prices[store] = mockPriceForStore(item, store);
+        console.log(`MOCKED: ${item.name} at ${store}`);
       } else {
-        console.log(`MOCKED: ${item.name}`);
-        prices["Walmart"] = mockPriceForStore(item, "Walmart");
-      }
-
-      // All other stores remain mocked for now
-      for (const store of STORES) {
-        if (store !== "Walmart") {
-          prices[store] = mockPriceForStore(item, store);
+        const match = scraped.find((r) => r.store === store);
+        if (match) {
+          console.log(`SCRAPED: ${item.name} at ${store} → $${match.price}`);
+          prices[store] = { price: match.price, inStock: true };
+        } else {
+          prices[store] = { price: null, inStock: false };
         }
       }
+    }
 
-      return { ...item, prices };
-    })
-  );
+    return { ...item, prices };
+  });
 
   // Per-store totals — only count available items
   const totals: Record<string, number | null> = {};
-  for (const store of STORES) {
+  for (const store of stores) {
     let total = 0;
     let hasOutOfStock = false;
     for (const item of pricedItems) {
@@ -281,5 +290,5 @@ export async function POST(request: Request) {
     totals[store] = hasOutOfStock ? null : Math.round(total * 100) / 100;
   }
 
-  return Response.json({ items: pricedItems, stores: STORES, totals });
+  return Response.json({ items: pricedItems, stores, totals });
 }
