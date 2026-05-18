@@ -172,7 +172,7 @@ export async function POST(request: Request) {
 
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
-    if (i > 0) await new Promise((r) => setTimeout(r, 1000));
+    if (i > 0) await new Promise((r) => setTimeout(r, 300));
 
     const scraped = await tryAmazonScrape(item.name, 15000);
     if (scraped) {
