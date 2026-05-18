@@ -20,8 +20,7 @@ const STORE_URLS: Record<string, string> = {
   Kroger: "https://www.kroger.com",
 };
 
-// Hardcoded store availability by zip code.
-// Unknown zips default to all stores.
+// Exact zip overrides — checked first before prefix inference
 const ZIP_STORE_MAP: Record<string, string[]> = {
   // Major urban — all stores
   "10001": ["Walmart", "Whole Foods", "Target", "Instacart", "Kroger"], // NYC Midtown
@@ -41,22 +40,67 @@ const ZIP_STORE_MAP: Record<string, string[]> = {
   "85001": ["Walmart", "Target", "Instacart"],            // Phoenix
   "63101": ["Walmart", "Target", "Instacart", "Kroger"],  // St. Louis
   "44101": ["Walmart", "Target", "Instacart", "Kroger"],  // Cleveland
-  // Small towns — Walmart + maybe one other
-  "82001": ["Walmart", "Target"],   // Cheyenne, WY
-  "38501": ["Walmart", "Kroger"],   // Cookeville, TN
-  "49601": ["Walmart"],             // Cadillac, MI (small town)
+  // Small towns — Walmart + maybe Target/Kroger, no Whole Foods or Instacart
+  "12508": ["Walmart", "Target", "Kroger"],  // Beacon, NY
+  "82001": ["Walmart", "Target"],            // Cheyenne, WY
+  "38501": ["Walmart", "Kroger"],            // Cookeville, TN
+  "49601": ["Walmart"],                      // Cadillac, MI
   // Rural — Walmart only
-  "59001": ["Walmart"],  // Absarokee, MT (rural)
-  "59725": ["Walmart"],  // Dillon, MT (rural)
+  "59001": ["Walmart"],  // Absarokee, MT
+  "59725": ["Walmart"],  // Dillon, MT
   "57001": ["Walmart"],  // rural South Dakota
-  "83201": ["Walmart"],  // Pocatello, ID (small/rural)
+  "83201": ["Walmart"],  // Pocatello, ID
 };
 
-const ALL_STORES = ["Walmart", "Whole Foods", "Target", "Instacart", "Kroger"];
+// 3-digit prefixes for major metro areas (Whole Foods + Instacart present)
+const URBAN_PREFIXES = new Set([
+  "100","101","102","103","104",        // NYC Manhattan
+  "112","113","114","116",              // Brooklyn, Queens, Bronx, Staten Island
+  "606","607",                          // Chicago
+  "900","901","902","903","904","905",  // LA metro
+  "940","941","942","943","944","945",  // SF Bay Area + East Bay
+  "980","981","982",                    // Seattle/Bellevue
+  "021","022","024",                    // Boston metro
+  "303","304",                          // Atlanta
+  "787",                                // Austin
+  "200","201","202","203","204",        // DC metro
+  "191","192","193","194","195",        // Philadelphia
+  "481","482","483",                    // Detroit metro
+  "770","772",                          // Houston core
+  "850","851","852",                    // Phoenix metro
+  "802","803","804",                    // Denver
+  "971","972","973",                    // Portland, OR
+  "372","373",                          // Nashville
+  "331","332","333",                    // Miami
+]);
+
+// 3-digit prefixes for sparse/rural areas (Walmart only or Walmart + Kroger)
+const RURAL_PREFIXES = new Set([
+  "590","591","592","593","594","595","596","597","598","599",  // Montana
+  "570","571","572","573","574","575","576","577",               // South Dakota
+  "580","581","582","583","584","585","586","587","588",         // North Dakota
+  "820","821","822","823","824","825","826","827","828","829",   // Wyoming
+  "832","833","834","835","836","837",                           // Rural Idaho
+  "875","877","878","879","880","881",                           // Rural New Mexico
+  "693","694","695","696","697","698","699",                     // Nebraska panhandle
+  "247","248","249",                                             // Rural West Virginia
+]);
 
 function getStoresForZip(zip: string): string[] | null {
   if (!zip || zip.length < 5) return null;
-  return ZIP_STORE_MAP[zip] ?? ALL_STORES;
+
+  // Exact match first
+  if (ZIP_STORE_MAP[zip]) return ZIP_STORE_MAP[zip];
+
+  const prefix = zip.slice(0, 3);
+  if (URBAN_PREFIXES.has(prefix)) {
+    return ["Walmart", "Whole Foods", "Target", "Instacart", "Kroger"];
+  }
+  if (RURAL_PREFIXES.has(prefix)) {
+    return ["Walmart", "Kroger"];
+  }
+  // Suburban default: Walmart + Target + Kroger, no Whole Foods (rare outside major metros)
+  return ["Walmart", "Target", "Kroger"];
 }
 
 export default function ResultsPage() {

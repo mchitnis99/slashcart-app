@@ -37,7 +37,9 @@ const BASE_PRICES: Record<string, number> = {
   milk: 3.49,
   butter: 4.99,
   cheese: 4.99,
-  yogurt: 1.29,
+  yogurt: 2.19,
+  low_fat_yogurt: 2.19,
+  greek_yogurt: 2.49,
   cream: 3.99,
   sour_cream: 2.49,
   cream_cheese: 3.29,
@@ -193,13 +195,19 @@ const STORE_MULTIPLIERS: Record<string, number> = {
   Kroger: 0.94,
 };
 
+// Units that describe package size rather than quantity of packages.
+// "16oz yogurt" means 1 container, not 16 separate items.
+const PACKAGE_SIZE_UNITS = new Set(["oz", "fl oz", "floz", "ml", "g", "mg", "cl"]);
+
 function mockPriceForStore(item: GroceryItem, store: string): StorePrice {
   const rand = seededRandom(`${item.name}|${store}`);
   const base = findBasePrice(item.name, rand);
   const multiplier = STORE_MULTIPLIERS[store] ?? 1;
   // ±7% variance per store so prices feel independently sourced
   const variance = 0.93 + rand() * 0.14;
-  const rawPrice = base * multiplier * variance * item.quantity;
+  const normalizedUnit = item.unit.toLowerCase().trim().replace(/\s+/g, "");
+  const qty = PACKAGE_SIZE_UNITS.has(normalizedUnit) ? 1 : item.quantity;
+  const rawPrice = base * multiplier * variance * qty;
   const price = Math.round(rawPrice * 100) / 100;
 
   // ~8% chance out of stock
