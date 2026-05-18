@@ -20,12 +20,55 @@ const STORE_URLS: Record<string, string> = {
   Kroger: "https://www.kroger.com",
 };
 
+// Hardcoded store availability by zip code.
+// Unknown zips default to all stores.
+const ZIP_STORE_MAP: Record<string, string[]> = {
+  // Major urban — all stores
+  "10001": ["Walmart", "Whole Foods", "Target", "Instacart", "Kroger"], // NYC Midtown
+  "10011": ["Walmart", "Whole Foods", "Target", "Instacart", "Kroger"], // NYC Chelsea
+  "90210": ["Walmart", "Whole Foods", "Target", "Instacart"],            // Beverly Hills
+  "90028": ["Walmart", "Whole Foods", "Target", "Instacart"],            // Hollywood
+  "60601": ["Walmart", "Whole Foods", "Target", "Instacart", "Kroger"], // Chicago Loop
+  "98101": ["Walmart", "Whole Foods", "Target", "Instacart"],            // Seattle
+  "02101": ["Walmart", "Whole Foods", "Target", "Instacart"],            // Boston
+  "30301": ["Walmart", "Whole Foods", "Target", "Instacart", "Kroger"], // Atlanta
+  "78701": ["Walmart", "Whole Foods", "Target", "Instacart", "Kroger"], // Austin
+  "94102": ["Walmart", "Whole Foods", "Target", "Instacart"],            // San Francisco
+  "20001": ["Walmart", "Whole Foods", "Target", "Instacart"],            // Washington DC
+  // Suburban — no Whole Foods
+  "30340": ["Walmart", "Target", "Instacart", "Kroger"],  // Suburban Atlanta
+  "77001": ["Walmart", "Target", "Instacart", "Kroger"],  // Houston
+  "85001": ["Walmart", "Target", "Instacart"],            // Phoenix
+  "63101": ["Walmart", "Target", "Instacart", "Kroger"],  // St. Louis
+  "44101": ["Walmart", "Target", "Instacart", "Kroger"],  // Cleveland
+  // Small towns — Walmart + maybe one other
+  "82001": ["Walmart", "Target"],   // Cheyenne, WY
+  "38501": ["Walmart", "Kroger"],   // Cookeville, TN
+  "49601": ["Walmart"],             // Cadillac, MI (small town)
+  // Rural — Walmart only
+  "59001": ["Walmart"],  // Absarokee, MT (rural)
+  "59725": ["Walmart"],  // Dillon, MT (rural)
+  "57001": ["Walmart"],  // rural South Dakota
+  "83201": ["Walmart"],  // Pocatello, ID (small/rural)
+};
+
+const ALL_STORES = ["Walmart", "Whole Foods", "Target", "Instacart", "Kroger"];
+
+function getStoresForZip(zip: string): string[] | null {
+  if (!zip || zip.length < 5) return null;
+  return ZIP_STORE_MAP[zip] ?? ALL_STORES;
+}
+
 export default function ResultsPage() {
   const [priceData, setPriceData] = useState<PriceData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [zipCode, setZipCode] = useState<string>("");
 
   useEffect(() => {
+    const savedZip = sessionStorage.getItem("slashcart_zipcode") ?? "";
+    setZipCode(savedZip);
+
     const raw = sessionStorage.getItem("slashcart_items");
     if (!raw) {
       setError("No grocery list found. Please go back and try again.");
@@ -54,10 +97,14 @@ export default function ResultsPage() {
   if (loading) return <LoadingState />;
   if (error || !priceData) return <ErrorState message={error ?? "Unknown error."} />;
 
-  const { items, stores, totals } = priceData;
+  const allowedStores = getStoresForZip(zipCode);
+  const { items, totals } = priceData;
+  const stores = allowedStores
+    ? priceData.stores.filter((s) => allowedStores.includes(s))
+    : priceData.stores;
 
   const validTotals = Object.entries(totals).filter(
-    (e): e is [string, number] => e[1] !== null
+    (e): e is [string, number] => e[1] !== null && stores.includes(e[0])
   );
 
   const cheapestStore =
@@ -88,10 +135,22 @@ export default function ResultsPage() {
         <h1 className="text-2xl sm:text-3xl font-bold text-[#e2e8f0]">
           Price Comparison
         </h1>
-        <p className="text-[#94a3b8] text-sm mt-1">
-          {items.length} item{items.length !== 1 ? "s" : ""} compared across{" "}
-          {stores.length} stores
-        </p>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
+          <p className="text-[#94a3b8] text-sm">
+            {items.length} item{items.length !== 1 ? "s" : ""} compared across{" "}
+            {stores.length} store{stores.length !== 1 ? "s" : ""}
+          </p>
+          {zipCode && (
+            <p className="text-[#94a3b8] text-sm">
+              ·{" "}
+              <span className="text-[#e2e8f0]">{zipCode}</span>
+              {" "}
+              <Link href="/" className="text-[#22c55e] hover:underline text-xs">
+                change
+              </Link>
+            </p>
+          )}
+        </div>
       </div>
 
       {/* Savings summary bar */}
