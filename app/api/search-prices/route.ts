@@ -216,6 +216,24 @@ function mockPriceForStore(item: GroceryItem, store: string): StorePrice {
   return { price: inStock ? price : null, inStock };
 }
 
+// Attempt a real Walmart scrape; resolve null if it takes longer than timeoutMs
+// or fails for any reason, so the caller can fall back to mock data.
+async function tryWalmartScrape(
+  itemName: string,
+  zipCode: string | undefined,
+  timeoutMs: number
+): Promise<StorePrice | null> {
+  const { scrapeWalmartPrice } = await import("@/lib/scrapers/walmart");
+
+  const scraped = await Promise.race<Awaited<ReturnType<typeof scrapeWalmartPrice>>>([
+    scrapeWalmartPrice(itemName, zipCode),
+    new Promise((resolve) => setTimeout(() => resolve(null), timeoutMs)),
+  ]);
+
+  if (!scraped) return null;
+  return { price: scraped.price, inStock: scraped.inStock };
+}
+
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   if (!body?.items || !Array.isArray(body.items)) {
@@ -223,14 +241,32 @@ export async function POST(request: Request) {
   }
 
   const items: GroceryItem[] = body.items;
+  const zipCode: string | undefined = body.zipCode || undefined;
 
-  const pricedItems: PricedItem[] = items.map((item) => {
-    const prices: Record<string, StorePrice> = {};
-    for (const store of STORES) {
-      prices[store] = mockPriceForStore(item, store);
-    }
-    return { ...item, prices };
-  });
+  const pricedItems: PricedItem[] = await Promise.all(
+    items.map(async (item) => {
+      const prices: Record<string, StorePrice> = {};
+
+      // Real scrape for Walmart; 10s timeout before falling back to mock
+      const walmartLive = await tryWalmartScrape(item.name, zipCode, 10000);
+      if (walmartLive) {
+        console.log(`SCRAPED: ${item.name} → $${walmartLive.price}`);
+        prices["Walmart"] = walmartLive;
+      } else {
+        console.log(`MOCKED: ${item.name}`);
+        prices["Walmart"] = mockPriceForStore(item, "Walmart");
+      }
+
+      // All other stores remain mocked for now
+      for (const store of STORES) {
+        if (store !== "Walmart") {
+          prices[store] = mockPriceForStore(item, store);
+        }
+      }
+
+      return { ...item, prices };
+    })
+  );
 
   // Per-store totals — only count available items
   const totals: Record<string, number | null> = {};

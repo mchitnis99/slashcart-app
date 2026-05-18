@@ -125,7 +125,7 @@ export default function ResultsPage() {
     fetch("/api/search-prices", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ items }),
+      body: JSON.stringify({ items, zipCode: savedZip || undefined }),
     })
       .then((r) => r.json())
       .then((data) => {
