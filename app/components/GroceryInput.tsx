@@ -96,9 +96,7 @@ export default function GroceryInput() {
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder={
-            "Paste your grocery list here...\n\n• 2 lbs chicken breast\n• 1 dozen eggs\n• Whole milk, 1 gallon\n• Sourdough bread"
-          }
+          placeholder="Paste your grocery list or receipt here..."
           rows={8}
           className="w-full rounded-xl border border-[#1e3050] bg-[#142036] text-[#e2e8f0] placeholder-[#475569] p-4 text-sm leading-relaxed resize-none focus:outline-none focus:ring-2 focus:ring-[#22c55e] transition"
         />
@@ -133,7 +131,7 @@ export default function GroceryInput() {
           className="w-full rounded-xl border border-dashed border-[#1e3050] bg-[#142036] hover:border-[#22c55e] hover:bg-[#0f2030] text-[#94a3b8] hover:text-[#22c55e] py-6 text-sm flex flex-col items-center gap-2 transition"
         >
           <span className="text-2xl">📷</span>
-          <span>Upload a photo of your grocery list</span>
+          <span>Upload a photo of your grocery list or store receipt</span>
           <span className="text-xs text-[#475569]">JPG, PNG, WEBP supported</span>
         </button>
       )}

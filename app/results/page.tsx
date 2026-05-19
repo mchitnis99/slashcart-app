@@ -12,6 +12,7 @@ export default function ResultsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [excludedItems, setExcludedItems] = useState<GroceryItem[]>([]);
+  const [paidPrices, setPaidPrices] = useState<Record<number, string>>({});
 
   useEffect(() => {
     const excluded = sessionStorage.getItem("slashcart_excluded");
@@ -44,6 +45,12 @@ export default function ResultsPage() {
 
   const { items, total } = priceData;
 
+  const totalSavings = items.reduce((sum, item, i) => {
+    if (item.amazonPrice === null) return sum;
+    const paid = parseFloat(paidPrices[i] ?? "");
+    return !isNaN(paid) && paid > item.amazonPrice ? sum + (paid - item.amazonPrice) : sum;
+  }, 0);
+
   const excludedPreview =
     excludedItems.slice(0, 3).map((i) => i.name).join(", ") +
     (excludedItems.length > 3 ? ", etc." : "");
@@ -71,53 +78,94 @@ export default function ResultsPage() {
 
       {/* Item list */}
       <div className="space-y-3 mb-8">
-        {items.map((item, i) => (
-          <div
-            key={i}
-            className="rounded-xl border border-[#1e3050] bg-[#0d1830] px-4 py-4 flex items-start justify-between gap-4"
-          >
-            <div className="min-w-0 flex-1">
-              <p className="font-medium text-[#e2e8f0] capitalize">{item.name}</p>
-              <p className="text-[#475569] text-xs mt-0.5">
-                {item.quantity} {item.unit}
-              </p>
-              {item.productName && item.productName !== item.name && (
-                <p className="text-[#64748b] text-xs mt-1 truncate" title={item.productName}>
-                  {item.productName}
-                </p>
+        {items.map((item, i) => {
+          const paid = parseFloat(paidPrices[i] ?? "");
+          const itemSavings =
+            item.amazonPrice !== null && !isNaN(paid) && paid > item.amazonPrice
+              ? paid - item.amazonPrice
+              : null;
+
+          return (
+            <div
+              key={i}
+              className="rounded-xl border border-[#1e3050] bg-[#0d1830] px-4 py-4"
+            >
+              {/* Main row */}
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium text-[#e2e8f0] capitalize">{item.name}</p>
+                  <p className="text-[#475569] text-xs mt-0.5">
+                    {item.quantity} {item.unit}
+                  </p>
+                  {item.productName && item.productName !== item.name && (
+                    <p className="text-[#64748b] text-xs mt-1 truncate" title={item.productName}>
+                      {item.productName}
+                    </p>
+                  )}
+                </div>
+                <div className="flex flex-col items-end gap-2 shrink-0">
+                  {item.amazonPrice !== null ? (
+                    <>
+                      <span className="text-[#e2e8f0] font-semibold text-base">
+                        ${item.amazonPrice.toFixed(2)}
+                      </span>
+                      <a
+                        href={`https://www.amazon.com/s?k=${encodeURIComponent(item.name)}&i=grocery`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[#22c55e] hover:text-[#16a34a] text-xs font-medium whitespace-nowrap transition-colors"
+                      >
+                        Buy on Amazon →
+                      </a>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-[#475569] text-sm">Price unavailable</span>
+                      <a
+                        href={`https://www.amazon.com/s?k=${encodeURIComponent(item.name)}&i=grocery`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[#64748b] hover:text-[#94a3b8] text-xs font-medium whitespace-nowrap transition-colors"
+                      >
+                        Search on Amazon →
+                      </a>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* "What did you pay?" row — only for items with an Amazon price */}
+              {item.amazonPrice !== null && (
+                <div className="mt-3 pt-3 border-t border-[#1e3050] flex items-center gap-3">
+                  <label className="text-[#475569] text-xs whitespace-nowrap">
+                    What did you pay?
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#475569] text-xs pointer-events-none">
+                      $
+                    </span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="0.00"
+                      value={paidPrices[i] ?? ""}
+                      onChange={(e) =>
+                        setPaidPrices((prev) => ({ ...prev, [i]: e.target.value }))
+                      }
+                      className="w-24 pl-5 pr-2 py-1.5 rounded-lg bg-[#142036] border border-[#1e3050] text-[#e2e8f0] text-xs focus:outline-none focus:ring-1 focus:ring-[#22c55e] transition"
+                    />
+                  </div>
+                  {itemSavings !== null && (
+                    <span className="text-[#22c55e] text-xs font-medium">
+                      Save ${itemSavings.toFixed(2)}
+                    </span>
+                  )}
+                </div>
               )}
             </div>
-            <div className="flex flex-col items-end gap-2 shrink-0">
-              {item.amazonPrice !== null ? (
-                <>
-                  <span className="text-[#e2e8f0] font-semibold text-base">
-                    ${item.amazonPrice.toFixed(2)}
-                  </span>
-                  <a
-                    href={`https://www.amazon.com/s?k=${encodeURIComponent(item.name)}&i=grocery`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-[#22c55e] hover:text-[#16a34a] text-xs font-medium whitespace-nowrap transition-colors"
-                  >
-                    Buy on Amazon →
-                  </a>
-                </>
-              ) : (
-                <>
-                  <span className="text-[#475569] text-sm">Price unavailable</span>
-                  <a
-                    href={`https://www.amazon.com/s?k=${encodeURIComponent(item.name)}&i=grocery`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-[#64748b] hover:text-[#94a3b8] text-xs font-medium whitespace-nowrap transition-colors"
-                  >
-                    Search on Amazon →
-                  </a>
-                </>
-              )}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Total */}
@@ -137,6 +185,17 @@ export default function ResultsPage() {
           </div>
         );
       })()}
+
+      {totalSavings > 0 && (
+        <div className="mt-3 rounded-xl bg-[#22c55e]/10 border border-[#22c55e]/30 px-4 py-4 flex items-center justify-between">
+          <span className="text-[#22c55e] font-medium text-sm">
+            Estimated savings vs. what you paid
+          </span>
+          <span className="text-[#22c55e] font-bold text-xl">
+            ${totalSavings.toFixed(2)}
+          </span>
+        </div>
+      )}
 
       <p className="text-[#475569] text-xs text-center mt-6">
         Prices are estimates and may vary. Check Amazon for real-time accuracy.
