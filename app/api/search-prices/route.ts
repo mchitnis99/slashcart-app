@@ -79,11 +79,13 @@ export async function POST(request: Request) {
     const item = items[i];
     if (i > 0) await new Promise((r) => setTimeout(r, 300));
 
-    // All three stores fetched in parallel per item
+    // All three stores fetched in parallel per item.
+    // Costco gets a shorter timeout and an extra .catch() so any unhandled
+    // rejection from that scraper cannot fail the whole Promise.all.
     const [amazon, walmart, costco] = await Promise.all([
       tryAmazonScrape(item.name, 15000),
       tryWalmartScrape(item.name, 15000),
-      tryCostcoScrape(item.name, 15000),
+      tryCostcoScrape(item.name, 8000).catch(() => null),
     ]);
 
     for (const [store, result] of [["amazon", amazon], ["walmart", walmart], ["costco", costco]] as const) {
