@@ -4,8 +4,9 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 
 type GroceryItem = { name: string; quantity: number; unit: string };
-type PricedItem = GroceryItem & { amazonPrice: number | null; productName: string };
-type PriceData = { items: PricedItem[]; total: number };
+type StoreResult = { price: number | null; productName: string };
+type PricedItem = GroceryItem & { amazon: StoreResult; walmart: StoreResult };
+type PriceData = { items: PricedItem[]; amazonTotal: number; walmartTotal: number };
 
 export default function ResultsPage() {
   const [priceData, setPriceData] = useState<PriceData | null>(null);
@@ -43,12 +44,19 @@ export default function ResultsPage() {
   if (loading) return <LoadingState />;
   if (error || !priceData) return <ErrorState message={error ?? "Unknown error."} />;
 
-  const { items, total } = priceData;
+  const { items, amazonTotal, walmartTotal } = priceData;
+
+  const bothHaveTotals = amazonTotal > 0 && walmartTotal > 0;
+  const cheaperStore = amazonTotal <= walmartTotal ? "Amazon" : "Walmart";
+  const pricierStore = cheaperStore === "Amazon" ? "Walmart" : "Amazon";
+  const storeSavings = bothHaveTotals ? Math.abs(amazonTotal - walmartTotal) : 0;
 
   const totalSavings = items.reduce((sum, item, i) => {
-    if (item.amazonPrice === null) return sum;
+    const bestPrice = Math.min(item.amazon.price ?? Infinity, item.walmart.price ?? Infinity);
     const paid = parseFloat(paidPrices[i] ?? "");
-    return !isNaN(paid) && paid > item.amazonPrice ? sum + (paid - item.amazonPrice) : sum;
+    return bestPrice < Infinity && !isNaN(paid) && paid > bestPrice
+      ? sum + (paid - bestPrice)
+      : sum;
   }, 0);
 
   const excludedPreview =
@@ -62,80 +70,158 @@ export default function ResultsPage() {
         <Link href="/" className="text-[#22c55e] text-sm hover:underline mb-3 inline-block">
           ← New search
         </Link>
-        <h1 className="text-2xl sm:text-3xl font-bold text-[#e2e8f0]">Amazon Prices</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-[#e2e8f0]">Price Comparison</h1>
         <p className="text-[#94a3b8] text-sm mt-1">
-          {items.length} pantry staple{items.length !== 1 ? "s" : ""}
+          {items.length} pantry staple{items.length !== 1 ? "s" : ""} · Amazon vs Walmart
         </p>
       </div>
 
       {/* Excluded fresh items note */}
       {excludedItems.length > 0 && (
-        <p className="text-[#475569] text-sm mb-6 px-1">
-          Showing pantry staples only. Fresh items ({excludedPreview}) are not included in price
-          comparison.
+        <p className="text-[#475569] text-sm mb-5 px-1">
+          Showing pantry staples only. Fresh items ({excludedPreview}) are not included.
         </p>
+      )}
+
+      {/* Store savings banner */}
+      {bothHaveTotals && storeSavings > 0.01 && (
+        <div className="mb-6 rounded-xl bg-[#22c55e]/10 border border-[#22c55e]/30 px-5 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <p className="text-[#e2e8f0] font-semibold text-sm sm:text-base">
+              <span className="text-[#22c55e]">{cheaperStore}</span> is cheaper by{" "}
+              <span className="text-[#22c55e] font-bold">${storeSavings.toFixed(2)}</span>{" "}
+              vs {pricierStore}
+            </p>
+            <p className="text-[#94a3b8] text-xs mt-0.5">
+              Amazon: ${amazonTotal.toFixed(2)} · Walmart: ${walmartTotal.toFixed(2)}
+            </p>
+          </div>
+        </div>
       )}
 
       {/* Item list */}
       <div className="space-y-3 mb-8">
         {items.map((item, i) => {
+          const amazonCheaper =
+            item.amazon.price !== null &&
+            (item.walmart.price === null || item.amazon.price < item.walmart.price);
+          const walmartCheaper =
+            item.walmart.price !== null &&
+            (item.amazon.price === null || item.walmart.price < item.amazon.price);
+
+          const bestPrice = Math.min(
+            item.amazon.price ?? Infinity,
+            item.walmart.price ?? Infinity
+          );
           const paid = parseFloat(paidPrices[i] ?? "");
           const itemSavings =
-            item.amazonPrice !== null && !isNaN(paid) && paid > item.amazonPrice
-              ? paid - item.amazonPrice
+            bestPrice < Infinity && !isNaN(paid) && paid > bestPrice
+              ? paid - bestPrice
               : null;
 
+          const hasSomePrice = item.amazon.price !== null || item.walmart.price !== null;
+
           return (
-            <div
-              key={i}
-              className="rounded-xl border border-[#1e3050] bg-[#0d1830] px-4 py-4"
-            >
-              {/* Main row */}
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0 flex-1">
-                  <p className="font-medium text-[#e2e8f0] capitalize">{item.name}</p>
-                  <p className="text-[#475569] text-xs mt-0.5">
-                    {item.quantity} {item.unit}
-                  </p>
-                  {item.productName && item.productName !== item.name && (
-                    <p className="text-[#64748b] text-xs mt-1 truncate" title={item.productName}>
-                      {item.productName}
-                    </p>
-                  )}
-                </div>
-                <div className="flex flex-col items-end gap-2 shrink-0">
-                  {item.amazonPrice !== null ? (
+            <div key={i} className="rounded-xl border border-[#1e3050] bg-[#0d1830] px-4 py-4">
+              {/* Item name */}
+              <div className="mb-3">
+                <p className="font-medium text-[#e2e8f0] capitalize">{item.name}</p>
+                <p className="text-[#475569] text-xs">{item.quantity} {item.unit}</p>
+              </div>
+
+              {/* Two-column store prices */}
+              <div className="grid grid-cols-2 gap-3">
+                {/* Amazon */}
+                <div
+                  className={`rounded-lg p-3 border ${
+                    amazonCheaper
+                      ? "border-[#22c55e]/40 bg-[#22c55e]/5"
+                      : "border-[#1e3050] bg-[#142036]"
+                  }`}
+                >
+                  <p className="text-[#64748b] text-xs font-medium mb-1">Amazon</p>
+                  {item.amazon.price !== null ? (
                     <>
-                      <span className="text-[#e2e8f0] font-semibold text-base">
-                        ${item.amazonPrice.toFixed(2)}
-                      </span>
+                      <p className={`font-bold text-lg leading-none mb-1 ${amazonCheaper ? "text-[#22c55e]" : "text-[#e2e8f0]"}`}>
+                        ${item.amazon.price.toFixed(2)}
+                        {amazonCheaper && <span className="text-xs ml-1">✓</span>}
+                      </p>
+                      {item.amazon.productName !== item.name && (
+                        <p className="text-[#475569] text-[11px] truncate mb-1" title={item.amazon.productName}>
+                          {item.amazon.productName}
+                        </p>
+                      )}
                       <a
                         href={`https://www.amazon.com/s?k=${encodeURIComponent(item.name)}&i=grocery`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-[#22c55e] hover:text-[#16a34a] text-xs font-medium whitespace-nowrap transition-colors"
+                        className="text-[#22c55e] hover:text-[#16a34a] text-xs transition-colors"
                       >
-                        Buy on Amazon →
+                        Buy →
                       </a>
                     </>
                   ) : (
                     <>
-                      <span className="text-[#475569] text-sm">Price unavailable</span>
+                      <p className="text-[#475569] text-sm mb-1">Unavailable</p>
                       <a
                         href={`https://www.amazon.com/s?k=${encodeURIComponent(item.name)}&i=grocery`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-[#64748b] hover:text-[#94a3b8] text-xs font-medium whitespace-nowrap transition-colors"
+                        className="text-[#475569] hover:text-[#64748b] text-xs transition-colors"
                       >
-                        Search on Amazon →
+                        Search →
+                      </a>
+                    </>
+                  )}
+                </div>
+
+                {/* Walmart */}
+                <div
+                  className={`rounded-lg p-3 border ${
+                    walmartCheaper
+                      ? "border-[#22c55e]/40 bg-[#22c55e]/5"
+                      : "border-[#1e3050] bg-[#142036]"
+                  }`}
+                >
+                  <p className="text-[#64748b] text-xs font-medium mb-1">Walmart</p>
+                  {item.walmart.price !== null ? (
+                    <>
+                      <p className={`font-bold text-lg leading-none mb-1 ${walmartCheaper ? "text-[#22c55e]" : "text-[#e2e8f0]"}`}>
+                        ${item.walmart.price.toFixed(2)}
+                        {walmartCheaper && <span className="text-xs ml-1">✓</span>}
+                      </p>
+                      {item.walmart.productName !== item.name && (
+                        <p className="text-[#475569] text-[11px] truncate mb-1" title={item.walmart.productName}>
+                          {item.walmart.productName}
+                        </p>
+                      )}
+                      <a
+                        href={`https://www.walmart.com/search?q=${encodeURIComponent(item.name)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[#22c55e] hover:text-[#16a34a] text-xs transition-colors"
+                      >
+                        Buy →
+                      </a>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-[#475569] text-sm mb-1">Unavailable</p>
+                      <a
+                        href={`https://www.walmart.com/search?q=${encodeURIComponent(item.name)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[#475569] hover:text-[#64748b] text-xs transition-colors"
+                      >
+                        Search →
                       </a>
                     </>
                   )}
                 </div>
               </div>
 
-              {/* "What did you pay?" row — only for items with an Amazon price */}
-              {item.amazonPrice !== null && (
+              {/* What did you pay? */}
+              {hasSomePrice && (
                 <div className="mt-3 pt-3 border-t border-[#1e3050] flex items-center gap-3">
                   <label className="text-[#475569] text-xs whitespace-nowrap">
                     What did you pay?
@@ -168,26 +254,36 @@ export default function ResultsPage() {
         })}
       </div>
 
-      {/* Total */}
-      {(() => {
-        const pricedCount = items.filter((i) => i.amazonPrice !== null).length;
-        return (
-          <div className="rounded-xl border border-[#1e3050] bg-[#142036] px-4 py-4 flex items-center justify-between">
-            <div>
-              <span className="font-semibold text-[#e2e8f0]">Estimated total</span>
-              {pricedCount < items.length && (
-                <p className="text-[#475569] text-xs mt-0.5">
-                  {pricedCount} of {items.length} items priced
-                </p>
-              )}
+      {/* Totals */}
+      <div className="grid grid-cols-2 gap-3 mb-3">
+        {[
+          { store: "Amazon", total: amazonTotal },
+          { store: "Walmart", total: walmartTotal },
+        ].map(({ store, total }) => {
+          const isCheaper = store === cheaperStore && bothHaveTotals && storeSavings > 0.01;
+          return (
+            <div
+              key={store}
+              className={`rounded-xl border px-4 py-4 ${
+                isCheaper
+                  ? "border-[#22c55e]/40 bg-[#22c55e]/5"
+                  : "border-[#1e3050] bg-[#142036]"
+              }`}
+            >
+              <p className={`text-xs font-medium mb-1 ${isCheaper ? "text-[#22c55e]" : "text-[#94a3b8]"}`}>
+                {store} total{isCheaper && " ✓"}
+              </p>
+              <p className={`font-bold text-xl ${isCheaper ? "text-[#22c55e]" : "text-[#e2e8f0]"}`}>
+                {total > 0 ? `$${total.toFixed(2)}` : "—"}
+              </p>
             </div>
-            <span className="text-[#22c55e] font-bold text-xl">${total.toFixed(2)}</span>
-          </div>
-        );
-      })()}
+          );
+        })}
+      </div>
 
+      {/* "What you paid" savings */}
       {totalSavings > 0 && (
-        <div className="mt-3 rounded-xl bg-[#22c55e]/10 border border-[#22c55e]/30 px-4 py-4 flex items-center justify-between">
+        <div className="rounded-xl bg-[#22c55e]/10 border border-[#22c55e]/30 px-4 py-4 flex items-center justify-between">
           <span className="text-[#22c55e] font-medium text-sm">
             Estimated savings vs. what you paid
           </span>
@@ -198,7 +294,7 @@ export default function ResultsPage() {
       )}
 
       <p className="text-[#475569] text-xs text-center mt-6">
-        Prices are estimates and may vary. Check Amazon for real-time accuracy.
+        Prices are estimates and may vary. Check store apps for real-time accuracy.
       </p>
     </main>
   );
@@ -208,7 +304,7 @@ function LoadingState() {
   return (
     <main className="flex flex-col flex-1 items-center justify-center gap-4 px-4">
       <div className="text-4xl animate-bounce">🛒</div>
-      <p className="text-[#e2e8f0] font-semibold text-lg">Finding best prices on Amazon…</p>
+      <p className="text-[#e2e8f0] font-semibold text-lg">Comparing prices on Amazon & Walmart…</p>
       <p className="text-[#94a3b8] text-sm">This may take a moment</p>
     </main>
   );

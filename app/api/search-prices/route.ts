@@ -4,19 +4,23 @@ type GroceryItem = {
   unit: string;
 };
 
+type StoreResult = {
+  price: number | null;
+  productName: string;
+};
+
 type PricedItem = {
   name: string;
   quantity: number;
   unit: string;
-  amazonPrice: number | null;
-  productName: string;
+  amazon: StoreResult;
+  walmart: StoreResult;
 };
-
 
 async function tryAmazonScrape(
   itemName: string,
   timeoutMs: number
-): Promise<{ price: number; productName: string } | null> {
+): Promise<StoreResult | null> {
   const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs));
   try {
     const { scrapeAmazonPrice } = await import("@/lib/scrapers/amazon");
@@ -24,7 +28,23 @@ async function tryAmazonScrape(
     if (!result) return null;
     return { price: result.price, productName: result.name };
   } catch (err) {
-    console.error(`[search-prices] Amazon scrape error:`, err);
+    console.error(`[search-prices] Amazon error:`, err);
+    return null;
+  }
+}
+
+async function tryWalmartScrape(
+  itemName: string,
+  timeoutMs: number
+): Promise<StoreResult | null> {
+  const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs));
+  try {
+    const { scrapeWalmartPrice } = await import("@/lib/scrapers/walmart");
+    const result = await Promise.race([scrapeWalmartPrice(itemName), timeout]);
+    if (!result) return null;
+    return { price: result.price, productName: result.name };
+  } catch (err) {
+    console.error(`[search-prices] Walmart error:`, err);
     return null;
   }
 }
@@ -36,27 +56,33 @@ export async function POST(request: Request) {
   }
 
   const items: GroceryItem[] = body.items;
-
-  // Scrape items sequentially with 1s delay between requests to avoid 429s
   const pricedItems: PricedItem[] = [];
 
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
     if (i > 0) await new Promise((r) => setTimeout(r, 300));
 
-    const scraped = await tryAmazonScrape(item.name, 15000);
-    if (scraped) {
-      console.log(`SCRAPED: ${item.name} → $${scraped.price} (${scraped.productName})`);
-      pricedItems.push({ ...item, amazonPrice: scraped.price, productName: scraped.productName });
-    } else {
-      console.log(`UNAVAILABLE: ${item.name}`);
-      pricedItems.push({ ...item, amazonPrice: null, productName: item.name });
-    }
+    // Both stores fetched in parallel per item
+    const [amazon, walmart] = await Promise.all([
+      tryAmazonScrape(item.name, 15000),
+      tryWalmartScrape(item.name, 15000),
+    ]);
+
+    if (amazon) console.log(`SCRAPED amazon: ${item.name} → $${amazon.price}`);
+    else console.log(`UNAVAILABLE amazon: ${item.name}`);
+    if (walmart) console.log(`SCRAPED walmart: ${item.name} → $${walmart.price}`);
+    else console.log(`UNAVAILABLE walmart: ${item.name}`);
+
+    pricedItems.push({
+      ...item,
+      amazon: amazon ?? { price: null, productName: item.name },
+      walmart: walmart ?? { price: null, productName: item.name },
+    });
   }
 
-  const total = Math.round(
-    pricedItems.reduce((sum, item) => sum + (item.amazonPrice ?? 0), 0) * 100
-  ) / 100;
+  const round = (n: number) => Math.round(n * 100) / 100;
+  const amazonTotal = round(pricedItems.reduce((s, i) => s + (i.amazon.price ?? 0), 0));
+  const walmartTotal = round(pricedItems.reduce((s, i) => s + (i.walmart.price ?? 0), 0));
 
-  return Response.json({ items: pricedItems, total });
+  return Response.json({ items: pricedItems, amazonTotal, walmartTotal });
 }
