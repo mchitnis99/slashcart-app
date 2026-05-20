@@ -5,8 +5,8 @@ import Link from "next/link";
 
 type GroceryItem = { name: string; quantity: number; unit: string };
 type StoreResult = { price: number | null; productName: string };
-type PricedItem = GroceryItem & { amazon: StoreResult; walmart: StoreResult };
-type PriceData = { items: PricedItem[]; amazonTotal: number; walmartTotal: number };
+type PricedItem = GroceryItem & { amazon: StoreResult; walmart: StoreResult; costco: StoreResult };
+type PriceData = { items: PricedItem[]; amazonTotal: number; walmartTotal: number; costcoTotal: number };
 
 export default function ResultsPage() {
   const [priceData, setPriceData] = useState<PriceData | null>(null);
@@ -44,15 +44,30 @@ export default function ResultsPage() {
   if (loading) return <LoadingState />;
   if (error || !priceData) return <ErrorState message={error ?? "Unknown error."} />;
 
-  const { items, amazonTotal, walmartTotal } = priceData;
+  const { items, amazonTotal, walmartTotal, costcoTotal } = priceData;
 
-  const bothHaveTotals = amazonTotal > 0 && walmartTotal > 0;
-  const cheaperStore = amazonTotal <= walmartTotal ? "Amazon" : "Walmart";
-  const pricierStore = cheaperStore === "Amazon" ? "Walmart" : "Amazon";
-  const storeSavings = bothHaveTotals ? Math.abs(amazonTotal - walmartTotal) : 0;
+  const allStoreTotals = [
+    { store: "Amazon",  total: amazonTotal  },
+    { store: "Walmart", total: walmartTotal },
+    { store: "Costco",  total: costcoTotal  },
+  ].filter((s) => s.total > 0);
+
+  const cheapestStore = allStoreTotals.length > 0
+    ? allStoreTotals.reduce((a, b) => (a.total < b.total ? a : b)).store
+    : null;
+  const priciest = allStoreTotals.length > 1
+    ? allStoreTotals.reduce((a, b) => (a.total > b.total ? a : b))
+    : null;
+  const storeSavings = cheapestStore && priciest
+    ? priciest.total - allStoreTotals.find((s) => s.store === cheapestStore)!.total
+    : 0;
 
   const totalSavings = items.reduce((sum, item, i) => {
-    const bestPrice = Math.min(item.amazon.price ?? Infinity, item.walmart.price ?? Infinity);
+    const bestPrice = Math.min(
+      item.amazon.price ?? Infinity,
+      item.walmart.price ?? Infinity,
+      item.costco.price ?? Infinity
+    );
     const paid = parseFloat(paidPrices[i] ?? "");
     return bestPrice < Infinity && !isNaN(paid) && paid > bestPrice
       ? sum + (paid - bestPrice)
@@ -84,34 +99,34 @@ export default function ResultsPage() {
       )}
 
       {/* Store savings banner */}
-      {bothHaveTotals && storeSavings > 0.01 && (
-        <div className="mb-6 rounded-xl bg-[#22c55e]/10 border border-[#22c55e]/30 px-5 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div>
-            <p className="text-[#e2e8f0] font-semibold text-sm sm:text-base">
-              <span className="text-[#22c55e]">{cheaperStore}</span> is cheaper by{" "}
-              <span className="text-[#22c55e] font-bold">${storeSavings.toFixed(2)}</span>{" "}
-              vs {pricierStore}
-            </p>
-            <p className="text-[#94a3b8] text-xs mt-0.5">
-              Amazon: ${amazonTotal.toFixed(2)} · Walmart: ${walmartTotal.toFixed(2)}
-            </p>
-          </div>
+      {cheapestStore && priciest && storeSavings > 0.01 && (
+        <div className="mb-6 rounded-xl bg-[#22c55e]/10 border border-[#22c55e]/30 px-5 py-4">
+          <p className="text-[#e2e8f0] font-semibold text-sm sm:text-base">
+            <span className="text-[#22c55e]">{cheapestStore}</span> is cheapest — save{" "}
+            <span className="text-[#22c55e] font-bold">${storeSavings.toFixed(2)}</span>{" "}
+            vs {priciest.store}
+          </p>
+          <p className="text-[#94a3b8] text-xs mt-1">
+            {allStoreTotals.map((s) => `${s.store}: $${s.total.toFixed(2)}`).join(" · ")}
+          </p>
         </div>
       )}
 
       {/* Item list */}
       <div className="space-y-3 mb-8">
         {items.map((item, i) => {
-          const amazonCheaper =
-            item.amazon.price !== null &&
-            (item.walmart.price === null || item.amazon.price < item.walmart.price);
-          const walmartCheaper =
-            item.walmart.price !== null &&
-            (item.amazon.price === null || item.walmart.price < item.amazon.price);
+          const prices = [item.amazon.price, item.walmart.price, item.costco.price].filter(
+            (p): p is number => p !== null
+          );
+          const minPrice = prices.length > 0 ? Math.min(...prices) : null;
+          const amazonCheapest = minPrice !== null && item.amazon.price === minPrice;
+          const walmartCheapest = minPrice !== null && item.walmart.price === minPrice;
+          const costcoCheapest = minPrice !== null && item.costco.price === minPrice;
 
           const bestPrice = Math.min(
             item.amazon.price ?? Infinity,
-            item.walmart.price ?? Infinity
+            item.walmart.price ?? Infinity,
+            item.costco.price ?? Infinity
           );
           const paid = parseFloat(paidPrices[i] ?? "");
           const itemSavings =
@@ -119,7 +134,8 @@ export default function ResultsPage() {
               ? paid - bestPrice
               : null;
 
-          const hasSomePrice = item.amazon.price !== null || item.walmart.price !== null;
+          const hasSomePrice =
+            item.amazon.price !== null || item.walmart.price !== null || item.costco.price !== null;
 
           return (
             <div key={i} className="rounded-xl border border-[#1e3050] bg-[#0d1830] px-4 py-4">
@@ -129,95 +145,74 @@ export default function ResultsPage() {
                 <p className="text-[#475569] text-xs">{item.quantity} {item.unit}</p>
               </div>
 
-              {/* Two-column store prices */}
-              <div className="grid grid-cols-2 gap-3">
-                {/* Amazon */}
-                <div
-                  className={`rounded-lg p-3 border ${
-                    amazonCheaper
-                      ? "border-[#22c55e]/40 bg-[#22c55e]/5"
-                      : "border-[#1e3050] bg-[#142036]"
-                  }`}
-                >
-                  <p className="text-[#64748b] text-xs font-medium mb-1">Amazon</p>
-                  {item.amazon.price !== null ? (
-                    <>
-                      <p className={`font-bold text-lg leading-none mb-1 ${amazonCheaper ? "text-[#22c55e]" : "text-[#e2e8f0]"}`}>
-                        ${item.amazon.price.toFixed(2)}
-                        {amazonCheaper && <span className="text-xs ml-1">✓</span>}
-                      </p>
-                      {item.amazon.productName !== item.name && (
-                        <p className="text-[#475569] text-[11px] truncate mb-1" title={item.amazon.productName}>
-                          {item.amazon.productName}
+              {/* Three-column store prices */}
+              <div className="grid grid-cols-3 gap-2">
+                {(
+                  [
+                    {
+                      label: "Amazon",
+                      result: item.amazon,
+                      cheapest: amazonCheapest,
+                      buyUrl: `https://www.amazon.com/s?k=${encodeURIComponent(item.name)}&i=grocery`,
+                    },
+                    {
+                      label: "Walmart",
+                      result: item.walmart,
+                      cheapest: walmartCheapest,
+                      buyUrl: `https://www.walmart.com/search?q=${encodeURIComponent(item.name)}`,
+                    },
+                    {
+                      label: "Costco",
+                      result: item.costco,
+                      cheapest: costcoCheapest,
+                      buyUrl: `https://www.costco.com/CatalogSearch?keyword=${encodeURIComponent(item.name)}`,
+                    },
+                  ] as const
+                ).map(({ label, result, cheapest, buyUrl }) => (
+                  <div
+                    key={label}
+                    className={`rounded-lg p-2.5 border ${
+                      cheapest
+                        ? "border-[#22c55e]/40 bg-[#22c55e]/5"
+                        : "border-[#1e3050] bg-[#142036]"
+                    }`}
+                  >
+                    <p className="text-[#64748b] text-xs font-medium mb-1">{label}</p>
+                    {result.price !== null ? (
+                      <>
+                        <p className={`font-bold text-base leading-none mb-1 ${cheapest ? "text-[#22c55e]" : "text-[#e2e8f0]"}`}>
+                          ${result.price.toFixed(2)}
+                          {cheapest && <span className="text-[10px] ml-0.5">✓</span>}
                         </p>
-                      )}
-                      <a
-                        href={`https://www.amazon.com/s?k=${encodeURIComponent(item.name)}&i=grocery`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-[#22c55e] hover:text-[#16a34a] text-xs transition-colors"
-                      >
-                        Buy →
-                      </a>
-                    </>
-                  ) : (
-                    <>
-                      <p className="text-[#475569] text-sm mb-1">Unavailable</p>
-                      <a
-                        href={`https://www.amazon.com/s?k=${encodeURIComponent(item.name)}&i=grocery`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-[#475569] hover:text-[#64748b] text-xs transition-colors"
-                      >
-                        Search →
-                      </a>
-                    </>
-                  )}
-                </div>
-
-                {/* Walmart */}
-                <div
-                  className={`rounded-lg p-3 border ${
-                    walmartCheaper
-                      ? "border-[#22c55e]/40 bg-[#22c55e]/5"
-                      : "border-[#1e3050] bg-[#142036]"
-                  }`}
-                >
-                  <p className="text-[#64748b] text-xs font-medium mb-1">Walmart</p>
-                  {item.walmart.price !== null ? (
-                    <>
-                      <p className={`font-bold text-lg leading-none mb-1 ${walmartCheaper ? "text-[#22c55e]" : "text-[#e2e8f0]"}`}>
-                        ${item.walmart.price.toFixed(2)}
-                        {walmartCheaper && <span className="text-xs ml-1">✓</span>}
-                      </p>
-                      {item.walmart.productName !== item.name && (
-                        <p className="text-[#475569] text-[11px] truncate mb-1" title={item.walmart.productName}>
-                          {item.walmart.productName}
-                        </p>
-                      )}
-                      <a
-                        href={`https://www.walmart.com/search?q=${encodeURIComponent(item.name)}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-[#22c55e] hover:text-[#16a34a] text-xs transition-colors"
-                      >
-                        Buy →
-                      </a>
-                    </>
-                  ) : (
-                    <>
-                      <p className="text-[#475569] text-sm mb-1">Unavailable</p>
-                      <a
-                        href={`https://www.walmart.com/search?q=${encodeURIComponent(item.name)}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-[#475569] hover:text-[#64748b] text-xs transition-colors"
-                      >
-                        Search →
-                      </a>
-                    </>
-                  )}
-                </div>
+                        {result.productName !== item.name && (
+                          <p className="text-[#475569] text-[10px] truncate mb-1" title={result.productName}>
+                            {result.productName}
+                          </p>
+                        )}
+                        <a
+                          href={buyUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[#22c55e] hover:text-[#16a34a] text-xs transition-colors"
+                        >
+                          Buy →
+                        </a>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-[#475569] text-xs mb-1">Unavailable</p>
+                        <a
+                          href={buyUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[#475569] hover:text-[#64748b] text-xs transition-colors"
+                        >
+                          Search →
+                        </a>
+                      </>
+                    )}
+                  </div>
+                ))}
               </div>
 
               {/* What did you pay? */}
@@ -255,25 +250,26 @@ export default function ResultsPage() {
       </div>
 
       {/* Totals */}
-      <div className="grid grid-cols-2 gap-3 mb-3">
+      <div className="grid grid-cols-3 gap-2 mb-3">
         {[
-          { store: "Amazon", total: amazonTotal },
+          { store: "Amazon",  total: amazonTotal  },
           { store: "Walmart", total: walmartTotal },
+          { store: "Costco",  total: costcoTotal  },
         ].map(({ store, total }) => {
-          const isCheaper = store === cheaperStore && bothHaveTotals && storeSavings > 0.01;
+          const isCheapest = store === cheapestStore && storeSavings > 0.01;
           return (
             <div
               key={store}
-              className={`rounded-xl border px-4 py-4 ${
-                isCheaper
+              className={`rounded-xl border px-3 py-3 ${
+                isCheapest
                   ? "border-[#22c55e]/40 bg-[#22c55e]/5"
                   : "border-[#1e3050] bg-[#142036]"
               }`}
             >
-              <p className={`text-xs font-medium mb-1 ${isCheaper ? "text-[#22c55e]" : "text-[#94a3b8]"}`}>
-                {store} total{isCheaper && " ✓"}
+              <p className={`text-xs font-medium mb-1 ${isCheapest ? "text-[#22c55e]" : "text-[#94a3b8]"}`}>
+                {store}{isCheapest && " ✓"}
               </p>
-              <p className={`font-bold text-xl ${isCheaper ? "text-[#22c55e]" : "text-[#e2e8f0]"}`}>
+              <p className={`font-bold text-lg ${isCheapest ? "text-[#22c55e]" : "text-[#e2e8f0]"}`}>
                 {total > 0 ? `$${total.toFixed(2)}` : "—"}
               </p>
             </div>

@@ -15,6 +15,7 @@ type PricedItem = {
   unit: string;
   amazon: StoreResult;
   walmart: StoreResult;
+  costco: StoreResult;
 };
 
 async function tryAmazonScrape(
@@ -49,6 +50,22 @@ async function tryWalmartScrape(
   }
 }
 
+async function tryCostcoScrape(
+  itemName: string,
+  timeoutMs: number
+): Promise<StoreResult | null> {
+  const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs));
+  try {
+    const { scrapeCostcoPrice } = await import("@/lib/scrapers/costco");
+    const result = await Promise.race([scrapeCostcoPrice(itemName), timeout]);
+    if (!result) return null;
+    return { price: result.price, productName: result.name };
+  } catch (err) {
+    console.error(`[search-prices] Costco error:`, err);
+    return null;
+  }
+}
+
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   if (!body?.items || !Array.isArray(body.items)) {
@@ -62,27 +79,30 @@ export async function POST(request: Request) {
     const item = items[i];
     if (i > 0) await new Promise((r) => setTimeout(r, 300));
 
-    // Both stores fetched in parallel per item
-    const [amazon, walmart] = await Promise.all([
+    // All three stores fetched in parallel per item
+    const [amazon, walmart, costco] = await Promise.all([
       tryAmazonScrape(item.name, 15000),
       tryWalmartScrape(item.name, 15000),
+      tryCostcoScrape(item.name, 15000),
     ]);
 
-    if (amazon) console.log(`SCRAPED amazon: ${item.name} → $${amazon.price}`);
-    else console.log(`UNAVAILABLE amazon: ${item.name}`);
-    if (walmart) console.log(`SCRAPED walmart: ${item.name} → $${walmart.price}`);
-    else console.log(`UNAVAILABLE walmart: ${item.name}`);
+    for (const [store, result] of [["amazon", amazon], ["walmart", walmart], ["costco", costco]] as const) {
+      if (result) console.log(`SCRAPED ${store}: ${item.name} → $${result.price}`);
+      else console.log(`UNAVAILABLE ${store}: ${item.name}`);
+    }
 
     pricedItems.push({
       ...item,
       amazon: amazon ?? { price: null, productName: item.name },
       walmart: walmart ?? { price: null, productName: item.name },
+      costco: costco ?? { price: null, productName: item.name },
     });
   }
 
   const round = (n: number) => Math.round(n * 100) / 100;
   const amazonTotal = round(pricedItems.reduce((s, i) => s + (i.amazon.price ?? 0), 0));
   const walmartTotal = round(pricedItems.reduce((s, i) => s + (i.walmart.price ?? 0), 0));
+  const costcoTotal = round(pricedItems.reduce((s, i) => s + (i.costco.price ?? 0), 0));
 
-  return Response.json({ items: pricedItems, amazonTotal, walmartTotal });
+  return Response.json({ items: pricedItems, amazonTotal, walmartTotal, costcoTotal });
 }
