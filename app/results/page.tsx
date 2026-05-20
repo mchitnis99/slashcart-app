@@ -5,8 +5,8 @@ import Link from "next/link";
 
 type GroceryItem = { name: string; quantity: number; unit: string };
 type StoreResult = { price: number | null; productName: string };
-type PricedItem = GroceryItem & { amazon: StoreResult; walmart: StoreResult; costco: StoreResult };
-type PriceData = { items: PricedItem[]; amazonTotal: number; walmartTotal: number; costcoTotal: number };
+type PricedItem = GroceryItem & { amazon: StoreResult; walmart: StoreResult; samsclub: StoreResult };
+type PriceData = { items: PricedItem[]; amazonTotal: number; walmartTotal: number; samsclubTotal: number };
 
 export default function ResultsPage() {
   const [priceData, setPriceData] = useState<PriceData | null>(null);
@@ -44,12 +44,11 @@ export default function ResultsPage() {
   if (loading) return <LoadingState />;
   if (error || !priceData) return <ErrorState message={error ?? "Unknown error."} />;
 
-  const { items, amazonTotal, walmartTotal, costcoTotal } = priceData;
+  const { items, amazonTotal, walmartTotal, samsclubTotal } = priceData;
 
   const allStoreTotals = [
     { store: "Amazon",  total: amazonTotal  },
     { store: "Walmart", total: walmartTotal },
-    { store: "Costco",  total: costcoTotal  },
   ].filter((s) => s.total > 0);
 
   const cheapestStore = allStoreTotals.length > 0
@@ -65,8 +64,7 @@ export default function ResultsPage() {
   const totalSavings = items.reduce((sum, item, i) => {
     const bestPrice = Math.min(
       item.amazon.price ?? Infinity,
-      item.walmart.price ?? Infinity,
-      item.costco.price ?? Infinity
+      item.walmart.price ?? Infinity
     );
     const paid = parseFloat(paidPrices[i] ?? "");
     return bestPrice < Infinity && !isNaN(paid) && paid > bestPrice
@@ -115,18 +113,16 @@ export default function ResultsPage() {
       {/* Item list */}
       <div className="space-y-3 mb-8">
         {items.map((item, i) => {
-          const prices = [item.amazon.price, item.walmart.price, item.costco.price].filter(
+          const prices = [item.amazon.price, item.walmart.price].filter(
             (p): p is number => p !== null
           );
           const minPrice = prices.length > 0 ? Math.min(...prices) : null;
           const amazonCheapest = minPrice !== null && item.amazon.price === minPrice;
           const walmartCheapest = minPrice !== null && item.walmart.price === minPrice;
-          const costcoCheapest = minPrice !== null && item.costco.price === minPrice;
 
           const bestPrice = Math.min(
             item.amazon.price ?? Infinity,
-            item.walmart.price ?? Infinity,
-            item.costco.price ?? Infinity
+            item.walmart.price ?? Infinity
           );
           const paid = parseFloat(paidPrices[i] ?? "");
           const itemSavings =
@@ -135,7 +131,7 @@ export default function ResultsPage() {
               : null;
 
           const hasSomePrice =
-            item.amazon.price !== null || item.walmart.price !== null || item.costco.price !== null;
+            item.amazon.price !== null || item.walmart.price !== null;
 
           return (
             <div key={i} className="rounded-xl border border-[#1e3050] bg-[#0d1830] px-4 py-4">
@@ -145,8 +141,8 @@ export default function ResultsPage() {
                 <p className="text-[#475569] text-xs">{item.quantity} {item.unit}</p>
               </div>
 
-              {/* Three-column store prices */}
-              <div className="grid grid-cols-3 gap-2">
+              {/* Two-column store prices */}
+              <div className="grid grid-cols-2 gap-3">
                 {(
                   [
                     {
@@ -160,12 +156,6 @@ export default function ResultsPage() {
                       result: item.walmart,
                       cheapest: walmartCheapest,
                       buyUrl: `https://www.walmart.com/search?q=${encodeURIComponent(item.name)}`,
-                    },
-                    {
-                      label: "Costco",
-                      result: item.costco,
-                      cheapest: costcoCheapest,
-                      buyUrl: `https://www.costco.com/CatalogSearch?keyword=${encodeURIComponent(item.name)}`,
                     },
                   ] as const
                 ).map(({ label, result, cheapest, buyUrl }) => (
@@ -250,11 +240,10 @@ export default function ResultsPage() {
       </div>
 
       {/* Totals */}
-      <div className="grid grid-cols-3 gap-2 mb-3">
+      <div className="grid grid-cols-2 gap-3 mb-3">
         {[
           { store: "Amazon",  total: amazonTotal  },
           { store: "Walmart", total: walmartTotal },
-          { store: "Costco",  total: costcoTotal  },
         ].map(({ store, total }) => {
           const isCheapest = store === cheapestStore && storeSavings > 0.01;
           return (
