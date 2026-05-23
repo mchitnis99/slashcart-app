@@ -1,5 +1,7 @@
 export const maxDuration = 60;
 
+import { getCachedPrice, setCachedPrice } from "@/lib/cache";
+
 type GroceryItem = {
   name: string;
   quantity: number;
@@ -95,6 +97,20 @@ export async function POST(request: Request) {
 
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
+
+    // Check cache first — skip scraping entirely on a hit.
+    const cached = await getCachedPrice(item.name);
+    if (cached) {
+      console.log(`CACHED: ${item.name}`);
+      pricedItems.push({
+        ...item,
+        amazon: cached.amazon ?? { ...EMPTY_AMAZON, productName: item.name },
+        walmart: cached.walmart ?? { price: null, productName: item.name },
+        samsclub: { price: null, productName: item.name },
+      });
+      continue;
+    }
+
     if (i > 0) await new Promise((r) => setTimeout(r, 200));
 
     // Amazon + Walmart in parallel per item (different APIs, no shared rate limit).
@@ -108,6 +124,8 @@ export async function POST(request: Request) {
     else console.log(`UNAVAILABLE amazon: ${item.name}`);
     if (walmart) console.log(`SCRAPED walmart: ${item.name} → $${walmart.price}`);
     else console.log(`UNAVAILABLE walmart: ${item.name}`);
+
+    await setCachedPrice(item.name, { amazon, walmart });
 
     pricedItems.push({
       ...item,
