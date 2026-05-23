@@ -18,11 +18,14 @@ function parsePrice(raw: unknown): number | null {
   return null;
 }
 
-const BULK_RE = /\b(pack|count|ct|case)\b/i;
+// "count"/"ct" are container-size descriptors (e.g. "112 count tub"), not multipack indicators.
+// Only "pack", "multipack", and "case" signal a true multi-unit purchase.
+const BULK_RE = /\b(pack|multipack|case)\b/i;
 
 function parseBulkQuantity(title: string): number | null {
-  const match = title.match(/(\d+)\s*(?:pack|count|ct|case)/i);
-  return match ? parseInt(match[1], 10) : null;
+  const match = title.match(/(\d+)[- ]?(?:pack|case)|(?:pack|case)\s+of\s+(\d+)/i);
+  if (!match) return null;
+  return parseInt(match[1] ?? match[2], 10);
 }
 
 function toStringOrNull(val: unknown): string | null {
@@ -36,7 +39,14 @@ function searchKeywords(itemName: string): string[] {
 
 function relevanceScore(title: string, keywords: string[]): number {
   const lower = title.toLowerCase();
-  return keywords.filter((kw) => lower.includes(kw)).length;
+  let score = 0;
+  keywords.forEach((kw, i) => {
+    if (lower.includes(kw)) {
+      // First keyword is treated as the brand — weight it 3x
+      score += i === 0 ? 3 : 1;
+    }
+  });
+  return score;
 }
 
 export async function scrapeAmazonPrice(itemName: string): Promise<AmazonResult | null> {
@@ -125,7 +135,7 @@ export async function scrapeAmazonPrice(itemName: string): Promise<AmazonResult 
     const title = String(result.name ?? result.title ?? "");
     if (!BULK_RE.test(title)) continue;
     const qty = parseBulkQuantity(title);
-    if (!qty || qty < 2) continue;
+    if (!qty || qty < 2 || qty > 200) continue;
     const perUnit = price / qty;
     if (perUnit >= regularPrice) continue;
     const bestBulkPerUnit = bulkPrice !== null && bulkQuantity !== null ? bulkPrice / bulkQuantity : Infinity;

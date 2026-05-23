@@ -1,3 +1,5 @@
+export const maxDuration = 60;
+
 type GroceryItem = {
   name: string;
   quantity: number;
@@ -29,14 +31,10 @@ type PricedItem = {
   samsclub: StoreResult;
 };
 
-async function tryAmazonScrape(
-  itemName: string,
-  timeoutMs: number
-): Promise<AmazonStoreResult | null> {
-  const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs));
+async function tryAmazonScrape(itemName: string): Promise<AmazonStoreResult | null> {
   try {
     const { scrapeAmazonPrice } = await import("@/lib/scrapers/amazon");
-    const result = await Promise.race([scrapeAmazonPrice(itemName), timeout]);
+    const result = await scrapeAmazonPrice(itemName);
     if (!result) return null;
 
     let annualSavings: number | null = null;
@@ -63,35 +61,14 @@ async function tryAmazonScrape(
   }
 }
 
-async function tryWalmartScrape(
-  itemName: string,
-  timeoutMs: number
-): Promise<StoreResult | null> {
-  const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs));
+async function tryWalmartScrape(itemName: string): Promise<StoreResult | null> {
   try {
     const { scrapeWalmartPrice } = await import("@/lib/scrapers/walmart");
-    const result = await Promise.race([scrapeWalmartPrice(itemName), timeout]);
+    const result = await scrapeWalmartPrice(itemName);
     if (!result) return null;
     return { price: result.price, productName: result.name };
   } catch (err) {
     console.error(`[search-prices] Walmart error:`, err);
-    return null;
-  }
-}
-
-async function trySamsClubScrape(
-  itemName: string,
-  timeoutMs: number
-): Promise<StoreResult | null> {
-  // scrapeSamsClubPrice returns null immediately (disabled in samsclub.ts); no network calls made.
-  const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs));
-  try {
-    const { scrapeSamsClubPrice } = await import("@/lib/scrapers/samsclub");
-    const result = await Promise.race([scrapeSamsClubPrice(itemName), timeout]);
-    if (!result) return null;
-    return { price: result.price, productName: result.name };
-  } catch (err) {
-    console.error(`[search-prices] Sam's Club error:`, err);
     return null;
   }
 }
@@ -118,32 +95,32 @@ export async function POST(request: Request) {
 
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
-    if (i > 0) await new Promise((r) => setTimeout(r, 500));
+    if (i > 0) await new Promise((r) => setTimeout(r, 200));
 
-    // Sequential per item to avoid 429s from concurrent requests.
-    const amazon = await tryAmazonScrape(item.name, 15000);
-    const walmart = await tryWalmartScrape(item.name, 15000);
-    const samsclub = await trySamsClubScrape(item.name, 8000).catch(() => null);
+    // Amazon + Walmart in parallel per item (different APIs, no shared rate limit).
+    // Items remain sequential to avoid hammering either API.
+    const [amazon, walmart] = await Promise.all([
+      tryAmazonScrape(item.name),
+      tryWalmartScrape(item.name),
+    ]);
 
     if (amazon) console.log(`SCRAPED amazon: ${item.name} → $${amazon.price}`);
     else console.log(`UNAVAILABLE amazon: ${item.name}`);
     if (walmart) console.log(`SCRAPED walmart: ${item.name} → $${walmart.price}`);
     else console.log(`UNAVAILABLE walmart: ${item.name}`);
-    if (samsclub) console.log(`SCRAPED samsclub: ${item.name} → $${samsclub.price}`);
-    else console.log(`UNAVAILABLE samsclub: ${item.name}`);
 
     pricedItems.push({
       ...item,
       amazon: amazon ?? { ...EMPTY_AMAZON, productName: item.name },
       walmart: walmart ?? { price: null, productName: item.name },
-      samsclub: samsclub ?? { price: null, productName: item.name },
+      samsclub: { price: null, productName: item.name },
     });
   }
 
   const round = (n: number) => Math.round(n * 100) / 100;
   const amazonTotal = round(pricedItems.reduce((s, i) => s + (i.amazon.price ?? 0), 0));
   const walmartTotal = round(pricedItems.reduce((s, i) => s + (i.walmart.price ?? 0), 0));
-  const samsclubTotal = round(pricedItems.reduce((s, i) => s + (i.samsclub.price ?? 0), 0));
+  const samsclubTotal = 0;
 
   return Response.json({ items: pricedItems, amazonTotal, walmartTotal, samsclubTotal });
 }
