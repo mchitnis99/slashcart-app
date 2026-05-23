@@ -9,11 +9,22 @@ type StoreResult = {
   productName: string;
 };
 
+type AmazonStoreResult = {
+  price: number | null;
+  productName: string;
+  asin: string | null;
+  regularPrice: number | null;
+  bulkPrice: number | null;
+  bulkQuantity: number | null;
+  bulkAsin: string | null;
+  annualSavings: number | null;
+};
+
 type PricedItem = {
   name: string;
   quantity: number;
   unit: string;
-  amazon: StoreResult;
+  amazon: AmazonStoreResult;
   walmart: StoreResult;
   samsclub: StoreResult;
 };
@@ -21,13 +32,31 @@ type PricedItem = {
 async function tryAmazonScrape(
   itemName: string,
   timeoutMs: number
-): Promise<StoreResult | null> {
+): Promise<AmazonStoreResult | null> {
   const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs));
   try {
     const { scrapeAmazonPrice } = await import("@/lib/scrapers/amazon");
     const result = await Promise.race([scrapeAmazonPrice(itemName), timeout]);
     if (!result) return null;
-    return { price: result.price, productName: result.name };
+
+    let annualSavings: number | null = null;
+    if (result.regularPrice !== null && result.bulkPrice !== null && result.bulkQuantity !== null) {
+      const savingsPerUnit = result.regularPrice - result.bulkPrice / result.bulkQuantity;
+      if (savingsPerUnit > 0) {
+        annualSavings = Math.round(savingsPerUnit * 12 * 100) / 100;
+      }
+    }
+
+    return {
+      price: result.price,
+      productName: result.name,
+      asin: result.asin,
+      regularPrice: result.regularPrice,
+      bulkPrice: result.bulkPrice,
+      bulkQuantity: result.bulkQuantity,
+      bulkAsin: result.bulkAsin,
+      annualSavings,
+    };
   } catch (err) {
     console.error(`[search-prices] Amazon error:`, err);
     return null;
@@ -67,6 +96,17 @@ async function trySamsClubScrape(
   }
 }
 
+const EMPTY_AMAZON: AmazonStoreResult = {
+  price: null,
+  productName: "",
+  asin: null,
+  regularPrice: null,
+  bulkPrice: null,
+  bulkQuantity: null,
+  bulkAsin: null,
+  annualSavings: null,
+};
+
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   if (!body?.items || !Array.isArray(body.items)) {
@@ -78,24 +118,23 @@ export async function POST(request: Request) {
 
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
-    if (i > 0) await new Promise((r) => setTimeout(r, 300));
+    if (i > 0) await new Promise((r) => setTimeout(r, 500));
 
-    // All three stores fetched in parallel per item.
-    // Sam's Club gets a shorter timeout and an extra .catch() as a safety net.
-    const [amazon, walmart, samsclub] = await Promise.all([
-      tryAmazonScrape(item.name, 15000),
-      tryWalmartScrape(item.name, 15000),
-      trySamsClubScrape(item.name, 8000).catch(() => null),
-    ]);
+    // Sequential per item to avoid 429s from concurrent requests.
+    const amazon = await tryAmazonScrape(item.name, 15000);
+    const walmart = await tryWalmartScrape(item.name, 15000);
+    const samsclub = await trySamsClubScrape(item.name, 8000).catch(() => null);
 
-    for (const [store, result] of [["amazon", amazon], ["walmart", walmart], ["samsclub", samsclub]] as const) {
-      if (result) console.log(`SCRAPED ${store}: ${item.name} → $${result.price}`);
-      else console.log(`UNAVAILABLE ${store}: ${item.name}`);
-    }
+    if (amazon) console.log(`SCRAPED amazon: ${item.name} → $${amazon.price}`);
+    else console.log(`UNAVAILABLE amazon: ${item.name}`);
+    if (walmart) console.log(`SCRAPED walmart: ${item.name} → $${walmart.price}`);
+    else console.log(`UNAVAILABLE walmart: ${item.name}`);
+    if (samsclub) console.log(`SCRAPED samsclub: ${item.name} → $${samsclub.price}`);
+    else console.log(`UNAVAILABLE samsclub: ${item.name}`);
 
     pricedItems.push({
       ...item,
-      amazon: amazon ?? { price: null, productName: item.name },
+      amazon: amazon ?? { ...EMPTY_AMAZON, productName: item.name },
       walmart: walmart ?? { price: null, productName: item.name },
       samsclub: samsclub ?? { price: null, productName: item.name },
     });

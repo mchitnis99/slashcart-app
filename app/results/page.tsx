@@ -5,8 +5,25 @@ import Link from "next/link";
 
 type GroceryItem = { name: string; quantity: number; unit: string };
 type StoreResult = { price: number | null; productName: string };
-type PricedItem = GroceryItem & { amazon: StoreResult; walmart: StoreResult; samsclub: StoreResult };
+type AmazonStoreResult = StoreResult & {
+  asin: string | null;
+  regularPrice: number | null;
+  bulkPrice: number | null;
+  bulkQuantity: number | null;
+  bulkAsin: string | null;
+  annualSavings: number | null;
+};
+type PricedItem = GroceryItem & { amazon: AmazonStoreResult; walmart: StoreResult; samsclub: StoreResult };
 type PriceData = { items: PricedItem[]; amazonTotal: number; walmartTotal: number; samsclubTotal: number };
+
+function buildAmazonCartUrl(items: PricedItem[]): string | null {
+  const asins = items
+    .map((item) => item.amazon.bulkAsin ?? item.amazon.asin)
+    .filter((asin): asin is string => typeof asin === "string" && asin.length > 0);
+  if (asins.length === 0) return null;
+  const params = asins.map((asin, i) => `ASIN.${i + 1}=${asin}&Qty.${i + 1}=1`).join("&");
+  return `https://www.amazon.com/gp/aws/cart/add.html?${params}`;
+}
 
 export default function ResultsPage() {
   const [priceData, setPriceData] = useState<PriceData | null>(null);
@@ -44,7 +61,7 @@ export default function ResultsPage() {
   if (loading) return <LoadingState />;
   if (error || !priceData) return <ErrorState message={error ?? "Unknown error."} />;
 
-  const { items, amazonTotal, walmartTotal, samsclubTotal } = priceData;
+  const { items, amazonTotal, walmartTotal } = priceData;
 
   const allStoreTotals = [
     { store: "Amazon",  total: amazonTotal  },
@@ -61,6 +78,10 @@ export default function ResultsPage() {
     ? priciest.total - allStoreTotals.find((s) => s.store === cheapestStore)!.total
     : 0;
 
+  const totalAnnualSavings = Math.round(
+    items.reduce((sum, item) => sum + (item.amazon.annualSavings ?? 0), 0) * 100
+  ) / 100;
+
   const totalSavings = items.reduce((sum, item, i) => {
     const bestPrice = Math.min(
       item.amazon.price ?? Infinity,
@@ -75,6 +96,8 @@ export default function ResultsPage() {
   const excludedPreview =
     excludedItems.slice(0, 3).map((i) => i.name).join(", ") +
     (excludedItems.length > 3 ? ", etc." : "");
+
+  const amazonCartUrl = buildAmazonCartUrl(items);
 
   return (
     <main className="flex flex-col flex-1 px-4 py-10 max-w-2xl mx-auto w-full">
@@ -96,15 +119,28 @@ export default function ResultsPage() {
         </p>
       )}
 
-      {/* Store savings banner */}
-      {cheapestStore && priciest && storeSavings > 0.01 && (
+      {/* Bulk savings banner */}
+      {totalAnnualSavings > 0 && (
         <div className="mb-6 rounded-xl bg-[#22c55e]/10 border border-[#22c55e]/30 px-5 py-4">
           <p className="text-[#e2e8f0] font-semibold text-sm sm:text-base">
-            <span className="text-[#22c55e]">{cheapestStore}</span> is cheapest — save{" "}
-            <span className="text-[#22c55e] font-bold">${storeSavings.toFixed(2)}</span>{" "}
-            vs {priciest.store}
+            Buy in bulk and save{" "}
+            <span className="text-[#22c55e] font-bold">${totalAnnualSavings.toFixed(2)}/year</span>
           </p>
           <p className="text-[#94a3b8] text-xs mt-1">
+            Compared to buying single units monthly across all items
+          </p>
+        </div>
+      )}
+
+      {/* Store savings banner */}
+      {cheapestStore && priciest && storeSavings > 0.01 && (
+        <div className="mb-6 rounded-xl bg-[#1e3050] border border-[#1e3050] px-5 py-3">
+          <p className="text-[#94a3b8] text-sm">
+            <span className="text-[#e2e8f0] font-medium">{cheapestStore}</span> is cheapest this trip — save{" "}
+            <span className="text-[#e2e8f0] font-bold">${storeSavings.toFixed(2)}</span>{" "}
+            vs {priciest.store}
+          </p>
+          <p className="text-[#475569] text-xs mt-0.5">
             {allStoreTotals.map((s) => `${s.store}: $${s.total.toFixed(2)}`).join(" · ")}
           </p>
         </div>
@@ -133,6 +169,11 @@ export default function ResultsPage() {
           const hasSomePrice =
             item.amazon.price !== null || item.walmart.price !== null;
 
+          const bulkPerUnit =
+            item.amazon.bulkPrice !== null && item.amazon.bulkQuantity !== null
+              ? item.amazon.bulkPrice / item.amazon.bulkQuantity
+              : null;
+
           return (
             <div key={i} className="rounded-xl border border-[#1e3050] bg-[#0d1830] px-4 py-4">
               {/* Item name */}
@@ -143,66 +184,112 @@ export default function ResultsPage() {
 
               {/* Two-column store prices */}
               <div className="grid grid-cols-2 gap-3">
-                {(
-                  [
-                    {
-                      label: "Amazon",
-                      result: item.amazon,
-                      cheapest: amazonCheapest,
-                      buyUrl: `https://www.amazon.com/s?k=${encodeURIComponent(item.name)}&i=grocery`,
-                    },
-                    {
-                      label: "Walmart",
-                      result: item.walmart,
-                      cheapest: walmartCheapest,
-                      buyUrl: `https://www.walmart.com/search?q=${encodeURIComponent(item.name)}`,
-                    },
-                  ] as const
-                ).map(({ label, result, cheapest, buyUrl }) => (
-                  <div
-                    key={label}
-                    className={`rounded-lg p-2.5 border ${
-                      cheapest
-                        ? "border-[#22c55e]/40 bg-[#22c55e]/5"
-                        : "border-[#1e3050] bg-[#142036]"
-                    }`}
-                  >
-                    <p className="text-[#64748b] text-xs font-medium mb-1">{label}</p>
-                    {result.price !== null ? (
-                      <>
-                        <p className={`font-bold text-base leading-none mb-1 ${cheapest ? "text-[#22c55e]" : "text-[#e2e8f0]"}`}>
-                          ${result.price.toFixed(2)}
-                          {cheapest && <span className="text-[10px] ml-0.5">✓</span>}
+                {/* Amazon column */}
+                <div
+                  className={`rounded-lg p-2.5 border ${
+                    amazonCheapest
+                      ? "border-[#22c55e]/40 bg-[#22c55e]/5"
+                      : "border-[#1e3050] bg-[#142036]"
+                  }`}
+                >
+                  <p className="text-[#64748b] text-xs font-medium mb-1">Amazon</p>
+                  {item.amazon.price !== null ? (
+                    <>
+                      <p className={`font-bold text-base leading-none mb-1 ${amazonCheapest ? "text-[#22c55e]" : "text-[#e2e8f0]"}`}>
+                        ${(item.amazon.regularPrice ?? item.amazon.price).toFixed(2)}
+                        {amazonCheapest && <span className="text-[10px] ml-0.5">✓</span>}
+                      </p>
+                      {item.amazon.productName !== item.name && (
+                        <p className="text-[#475569] text-[10px] truncate mb-1" title={item.amazon.productName}>
+                          {item.amazon.productName}
                         </p>
-                        {result.productName !== item.name && (
-                          <p className="text-[#475569] text-[10px] truncate mb-1" title={result.productName}>
-                            {result.productName}
+                      )}
+                      {/* Bulk pricing */}
+                      {item.amazon.bulkPrice !== null && item.amazon.bulkQuantity !== null && bulkPerUnit !== null && (
+                        <div className="mt-1.5 mb-1 rounded bg-[#0d1830] px-2 py-1.5 border border-[#1e3050]">
+                          <p className="text-[#94a3b8] text-[10px] leading-snug">
+                            ${item.amazon.bulkPrice.toFixed(2)} for {item.amazon.bulkQuantity}-pack
                           </p>
-                        )}
+                          <p className="text-[#94a3b8] text-[10px] leading-snug">
+                            = <span className="text-[#e2e8f0] font-medium">${bulkPerUnit.toFixed(2)}/unit</span>
+                          </p>
+                        </div>
+                      )}
+                      {/* Annual savings badge */}
+                      {item.amazon.annualSavings !== null && item.amazon.annualSavings > 0 && (
+                        <p className="text-[#22c55e] text-[10px] font-medium bg-[#22c55e]/10 rounded px-1.5 py-0.5 inline-block mb-1 mt-0.5">
+                          Save ${item.amazon.annualSavings.toFixed(2)}/yr bulk
+                        </p>
+                      )}
+                      <div className="mt-1">
                         <a
-                          href={buyUrl}
+                          href={`https://www.amazon.com/s?k=${encodeURIComponent(item.name)}&i=grocery`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-[#22c55e] hover:text-[#16a34a] text-xs transition-colors"
                         >
                           Buy →
                         </a>
-                      </>
-                    ) : (
-                      <>
-                        <p className="text-[#475569] text-xs mb-1">Unavailable</p>
-                        <a
-                          href={buyUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-[#475569] hover:text-[#64748b] text-xs transition-colors"
-                        >
-                          Search →
-                        </a>
-                      </>
-                    )}
-                  </div>
-                ))}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-[#475569] text-xs mb-1">Unavailable</p>
+                      <a
+                        href={`https://www.amazon.com/s?k=${encodeURIComponent(item.name)}&i=grocery`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[#475569] hover:text-[#64748b] text-xs transition-colors"
+                      >
+                        Search →
+                      </a>
+                    </>
+                  )}
+                </div>
+
+                {/* Walmart column */}
+                <div
+                  className={`rounded-lg p-2.5 border ${
+                    walmartCheapest
+                      ? "border-[#22c55e]/40 bg-[#22c55e]/5"
+                      : "border-[#1e3050] bg-[#142036]"
+                  }`}
+                >
+                  <p className="text-[#64748b] text-xs font-medium mb-1">Walmart</p>
+                  {item.walmart.price !== null ? (
+                    <>
+                      <p className={`font-bold text-base leading-none mb-1 ${walmartCheapest ? "text-[#22c55e]" : "text-[#e2e8f0]"}`}>
+                        ${item.walmart.price.toFixed(2)}
+                        {walmartCheapest && <span className="text-[10px] ml-0.5">✓</span>}
+                      </p>
+                      {item.walmart.productName !== item.name && (
+                        <p className="text-[#475569] text-[10px] truncate mb-1" title={item.walmart.productName}>
+                          {item.walmart.productName}
+                        </p>
+                      )}
+                      <a
+                        href={`https://www.walmart.com/search?q=${encodeURIComponent(item.name)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[#22c55e] hover:text-[#16a34a] text-xs transition-colors"
+                      >
+                        Buy →
+                      </a>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-[#475569] text-xs mb-1">Unavailable</p>
+                      <a
+                        href={`https://www.walmart.com/search?q=${encodeURIComponent(item.name)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[#475569] hover:text-[#64748b] text-xs transition-colors"
+                      >
+                        Search →
+                      </a>
+                    </>
+                  )}
+                </div>
               </div>
 
               {/* What did you pay? */}
@@ -268,7 +355,7 @@ export default function ResultsPage() {
 
       {/* "What you paid" savings */}
       {totalSavings > 0 && (
-        <div className="rounded-xl bg-[#22c55e]/10 border border-[#22c55e]/30 px-4 py-4 flex items-center justify-between">
+        <div className="rounded-xl bg-[#22c55e]/10 border border-[#22c55e]/30 px-4 py-4 flex items-center justify-between mb-3">
           <span className="text-[#22c55e] font-medium text-sm">
             Estimated savings vs. what you paid
           </span>
@@ -278,7 +365,34 @@ export default function ResultsPage() {
         </div>
       )}
 
-      <p className="text-[#475569] text-xs text-center mt-6">
+      {/* Total annual bulk savings */}
+      {totalAnnualSavings > 0 && (
+        <div className="rounded-xl bg-[#22c55e]/10 border border-[#22c55e]/30 px-4 py-4 flex items-center justify-between mb-4">
+          <div>
+            <span className="text-[#22c55e] font-semibold text-sm block">
+              Total annual savings buying in bulk
+            </span>
+            <span className="text-[#94a3b8] text-xs">vs. buying single units monthly</span>
+          </div>
+          <span className="text-[#22c55e] font-bold text-2xl">
+            ${totalAnnualSavings.toFixed(2)}
+          </span>
+        </div>
+      )}
+
+      {/* Amazon multi-cart button */}
+      {amazonCartUrl && (
+        <a
+          href={amazonCartUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#22c55e] hover:bg-[#16a34a] text-white font-bold text-base px-6 py-4 transition-colors mb-6"
+        >
+          Add all to Amazon cart →
+        </a>
+      )}
+
+      <p className="text-[#475569] text-xs text-center mt-2">
         Prices are estimates and may vary. Check store apps for real-time accuracy.
       </p>
     </main>
