@@ -25,6 +25,10 @@ export function parseUnit(productName: string): ParsedUnit | null {
   const flOz = productName.match(/(\d+(?:\.\d+)?)\s*fl[\.\s]*oz\b/i);
   if (flOz) return { quantity: Number(flOz[1]), unit: "fl oz" };
 
+  // "N count" / "N-Count" / "N ct" (e.g. "45 count", "102-Count", "45 ct")
+  const count = productName.match(/(\d+(?:\.\d+)?)[- ]+(count|ct)\b/i);
+  if (count) return { quantity: Number(count[1]), unit: "count" };
+
   // "N [modifiers] Rolls" (e.g. "6 Double Rolls", "18 Super Mega Rolls")
   const rolls = productName.match(/(\d+(?:\.\d+)?)\s+(?:\w+\s+)*rolls?\b/i);
   if (rolls) return { quantity: Number(rolls[1]), unit: "rolls" };
@@ -35,7 +39,7 @@ export function parseUnit(productName: string): ParsedUnit | null {
 
   // General: "N unit"
   const general = productName.match(
-    /(\d+(?:\.\d+)?)\s+(count|ct|lb|lbs?|pounds?|g|grams?|kg|ml|liters?|[Ll]\b|pk|packs?|each|ea)\b/i
+    /(\d+(?:\.\d+)?)\s+(lb|lbs?|pounds?|g|grams?|kg|ml|liters?|[Ll]\b|pk|packs?|each|ea)\b/i
   );
   if (general) return { quantity: Number(general[1]), unit: normalizeUnit(general[2]) };
 

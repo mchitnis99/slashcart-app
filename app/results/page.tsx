@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { parseUnit } from "@/lib/utils/parseUnit";
 
 type GroceryItem = { name: string; quantity: number; unit: string };
 type StoreResult = { price: number | null; productName: string };
@@ -149,12 +150,35 @@ export default function ResultsPage() {
       {/* Item list */}
       <div className="space-y-3 mb-8">
         {items.map((item, i) => {
-          const prices = [item.amazon.price, item.walmart.price].filter(
-            (p): p is number => p !== null
-          );
-          const minPrice = prices.length > 0 ? Math.min(...prices) : null;
-          const amazonCheapest = minPrice !== null && item.amazon.price === minPrice;
-          const walmartCheapest = minPrice !== null && item.walmart.price === minPrice;
+          const amazonUnit = item.amazon.productName ? parseUnit(item.amazon.productName) : null;
+          const walmartUnit = item.walmart.productName ? parseUnit(item.walmart.productName) : null;
+          const amazonPricePerUnit =
+            amazonUnit && item.amazon.price !== null
+              ? item.amazon.price / amazonUnit.quantity
+              : null;
+          const walmartPricePerUnit =
+            walmartUnit && item.walmart.price !== null
+              ? item.walmart.price / walmartUnit.quantity
+              : null;
+
+          const unitsMatch =
+            amazonPricePerUnit !== null &&
+            walmartPricePerUnit !== null &&
+            amazonUnit!.unit === walmartUnit!.unit;
+
+          let amazonCheapest: boolean;
+          let walmartCheapest: boolean;
+          if (unitsMatch) {
+            amazonCheapest = amazonPricePerUnit! <= walmartPricePerUnit!;
+            walmartCheapest = walmartPricePerUnit! <= amazonPricePerUnit!;
+          } else {
+            const prices = [item.amazon.price, item.walmart.price].filter(
+              (p): p is number => p !== null
+            );
+            const minPrice = prices.length > 0 ? Math.min(...prices) : null;
+            amazonCheapest = minPrice !== null && item.amazon.price === minPrice;
+            walmartCheapest = minPrice !== null && item.walmart.price === minPrice;
+          }
 
           const bestPrice = Math.min(
             item.amazon.price ?? Infinity,
@@ -199,6 +223,16 @@ export default function ResultsPage() {
                         ${(item.amazon.regularPrice ?? item.amazon.price).toFixed(2)}
                         {amazonCheapest && <span className="text-[10px] ml-0.5">✓</span>}
                       </p>
+                      {amazonUnit && (
+                        <p className="text-[#64748b] text-[11px] leading-none mb-0.5">
+                          {amazonUnit.quantity} {amazonUnit.unit}
+                        </p>
+                      )}
+                      {amazonPricePerUnit !== null && (
+                        <p className="text-[#475569] text-[10px] leading-none mb-1">
+                          ${amazonPricePerUnit.toFixed(2)}/{amazonUnit!.unit}
+                        </p>
+                      )}
                       {item.amazon.productName !== item.name && (
                         <p className="text-[#475569] text-[10px] truncate mb-1" title={item.amazon.productName}>
                           {item.amazon.productName}
@@ -262,6 +296,16 @@ export default function ResultsPage() {
                         ${item.walmart.price.toFixed(2)}
                         {walmartCheapest && <span className="text-[10px] ml-0.5">✓</span>}
                       </p>
+                      {walmartUnit && (
+                        <p className="text-[#64748b] text-[11px] leading-none mb-0.5">
+                          {walmartUnit.quantity} {walmartUnit.unit}
+                        </p>
+                      )}
+                      {walmartPricePerUnit !== null && (
+                        <p className="text-[#475569] text-[10px] leading-none mb-1">
+                          ${walmartPricePerUnit.toFixed(2)}/{walmartUnit!.unit}
+                        </p>
+                      )}
                       {item.walmart.productName !== item.name && (
                         <p className="text-[#475569] text-[10px] truncate mb-1" title={item.walmart.productName}>
                           {item.walmart.productName}
