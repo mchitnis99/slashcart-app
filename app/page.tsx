@@ -35,15 +35,13 @@ export default function HomePage() {
           <SlashCartLogo />
         </div>
         <h1 className="text-3xl sm:text-5xl font-bold text-[#e2e8f0] leading-tight mb-3">
-          Did you know pantry staples, toiletries, and cleaning supplies make up{" "}
-          <span className="text-[#22c55e]">40–50%</span> of your grocery bill?
+          Let&apos;s Slash Your Grocery Bill
         </h1>
         <p className="text-[#22c55e] font-semibold text-lg sm:text-xl mb-3">
-          Let&apos;s get those down!
+          We&apos;ll find the best prices across Amazon and Walmart — including bulk deals.
         </p>
         <p className="text-[#94a3b8] text-base sm:text-lg max-w-md mx-auto">
-          It&apos;s easy — paste or upload a pic of your grocery list or store receipt.
-          We&apos;ll help you cut those costs with Amazon.
+          It&apos;s easy — just paste your grocery list or upload a receipt!
         </p>
       </div>
 
