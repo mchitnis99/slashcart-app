@@ -13,9 +13,11 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SlashCart — Grocery Price Comparison",
-  description:
-    "Paste your grocery list and instantly compare prices across Walmart, Whole Foods, Target, and more.",
+  title: "SlashCart",
+  description: "Compare grocery prices across Amazon and Walmart",
+  icons: {
+    icon: "/slashcart-logo.svg",
+  },
 };
 
 export default function RootLayout({
