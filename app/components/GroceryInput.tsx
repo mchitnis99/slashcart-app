@@ -7,6 +7,7 @@ export default function GroceryInput() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [email, setEmail] = useState("");
   const [zipCode, setZipCode] = useState("");
   const [text, setText] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -67,6 +68,15 @@ export default function GroceryInput() {
       sessionStorage.setItem("slashcart_items", JSON.stringify(items));
       sessionStorage.setItem("slashcart_excluded", JSON.stringify(excluded_items ?? []));
       sessionStorage.setItem("slashcart_zipcode", zipCode.trim());
+
+      if (email.trim()) {
+        fetch("/api/waitlist", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: email.trim() }),
+        }).catch(() => {});
+      }
+
       router.push("/results");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
@@ -77,6 +87,22 @@ export default function GroceryInput() {
 
   return (
     <form onSubmit={handleSubmit} className="w-full max-w-2xl mx-auto space-y-4">
+      <div>
+        <label className="block text-[#94a3b8] text-xs font-medium uppercase tracking-wider mb-1.5">
+          Enter your email to save your results
+        </label>
+        <input
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="you@example.com"
+          className="w-full rounded-xl border border-[#1e3050] bg-[#142036] text-[#e2e8f0] placeholder-[#475569] px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#22c55e] transition"
+        />
+        <p className="text-[#475569] text-xs mt-1.5">
+          No spam. We&apos;ll notify you of price drops and new features.
+        </p>
+      </div>
+
       <div>
         <label className="block text-[#94a3b8] text-xs font-medium uppercase tracking-wider mb-1.5">
           Your zip code
