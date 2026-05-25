@@ -89,7 +89,7 @@ export default function GroceryInput() {
     <form onSubmit={handleSubmit} className="w-full max-w-2xl mx-auto space-y-4">
       <div>
         <label className="block text-[#94a3b8] text-xs font-medium uppercase tracking-wider mb-1.5">
-          Enter your email to save your results
+          Stay updated on deals and new stores
         </label>
         <input
           type="email"
@@ -99,7 +99,7 @@ export default function GroceryInput() {
           className="w-full rounded-xl border border-[#1e3050] bg-[#142036] text-[#e2e8f0] placeholder-[#475569] px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#22c55e] transition"
         />
         <p className="text-[#475569] text-xs mt-1.5">
-          No spam. We&apos;ll notify you of price drops and new features.
+          No spam. Unsubscribe anytime.
         </p>
       </div>
 
