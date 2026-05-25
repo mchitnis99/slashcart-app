@@ -14,7 +14,7 @@ type AmazonStoreResult = StoreResult & {
   bulkAsin: string | null;
   annualSavings: number | null;
 };
-type PricedItem = GroceryItem & { amazon: AmazonStoreResult; walmart: StoreResult; samsclub: StoreResult };
+type PricedItem = GroceryItem & { amazon: AmazonStoreResult; walmart: StoreResult; samsclub: StoreResult; sizeMismatch: boolean };
 type PriceData = { items: PricedItem[]; amazonTotal: number; walmartTotal: number; samsclubTotal: number };
 
 function buildAmazonCartUrl(items: PricedItem[]): string | null {
@@ -134,13 +134,17 @@ export default function ResultsPage() {
               : null;
 
           const unitsMatch =
+            !item.sizeMismatch &&
             amazonPricePerUnit !== null &&
             walmartPricePerUnit !== null &&
             amazonUnit!.unit === walmartUnit!.unit;
 
           let amazonCheapest: boolean;
           let walmartCheapest: boolean;
-          if (unitsMatch) {
+          if (item.sizeMismatch) {
+            amazonCheapest = false;
+            walmartCheapest = false;
+          } else if (unitsMatch) {
             amazonCheapest = amazonPricePerUnit! <= walmartPricePerUnit!;
             walmartCheapest = walmartPricePerUnit! <= amazonPricePerUnit!;
           } else {
@@ -163,6 +167,11 @@ export default function ResultsPage() {
               <div className="mb-3">
                 <p className="font-medium text-[#e2e8f0] capitalize">{item.name}</p>
                 <p className="text-[#475569] text-xs">{item.quantity} {item.unit}</p>
+                {item.sizeMismatch && (
+                  <p className="text-[#f59e0b] text-[10px] mt-0.5">
+                    ⚠ Different sizes — prices not directly comparable
+                  </p>
+                )}
               </div>
 
               {/* Two-column store prices */}
@@ -187,7 +196,7 @@ export default function ResultsPage() {
                           {amazonUnit.quantity} {amazonUnit.unit}
                         </p>
                       )}
-                      {amazonPricePerUnit !== null && (
+                      {!item.sizeMismatch && amazonPricePerUnit !== null && (
                         <p className="text-[#475569] text-[10px] leading-none mb-1">
                           ${amazonPricePerUnit.toFixed(2)}/{amazonUnit!.unit}
                         </p>
@@ -197,8 +206,8 @@ export default function ResultsPage() {
                           {item.amazon.productName}
                         </p>
                       )}
-                      {/* Bulk pricing */}
-                      {item.amazon.bulkPrice !== null && item.amazon.bulkQuantity !== null && bulkPerUnit !== null && (
+                      {/* Bulk pricing — only shown when sizes are comparable */}
+                      {!item.sizeMismatch && item.amazon.bulkPrice !== null && item.amazon.bulkQuantity !== null && bulkPerUnit !== null && (
                         <div className="mt-1.5 mb-1 rounded bg-[#0d1830] px-2 py-1.5 border border-[#1e3050]">
                           <p className="text-[#94a3b8] text-[10px] leading-snug">
                             ${item.amazon.bulkPrice.toFixed(2)} for {item.amazon.bulkQuantity}-pack
@@ -208,7 +217,7 @@ export default function ResultsPage() {
                           </p>
                         </div>
                       )}
-                      {/* Annual savings badge */}
+                      {/* Annual savings badge — nulled out by route when sizeMismatch */}
                       {item.amazon.annualSavings !== null && item.amazon.annualSavings > 0 && (
                         <p className="text-[#22c55e] text-[10px] font-medium bg-[#22c55e]/10 rounded px-1.5 py-0.5 inline-block mb-1 mt-0.5">
                           Save ${item.amazon.annualSavings.toFixed(2)}/yr bulk
@@ -260,7 +269,7 @@ export default function ResultsPage() {
                           {walmartUnit.quantity} {walmartUnit.unit}
                         </p>
                       )}
-                      {walmartPricePerUnit !== null && (
+                      {!item.sizeMismatch && walmartPricePerUnit !== null && (
                         <p className="text-[#475569] text-[10px] leading-none mb-1">
                           ${walmartPricePerUnit.toFixed(2)}/{walmartUnit!.unit}
                         </p>

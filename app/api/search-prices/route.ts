@@ -1,6 +1,7 @@
 export const maxDuration = 60;
 
 import { getCachedPrice, setCachedPrice } from "@/lib/cache";
+import { parseUnit, type ParsedUnit } from "@/lib/utils/parseUnit";
 
 type GroceryItem = {
   name: string;
@@ -31,7 +32,28 @@ type PricedItem = {
   amazon: AmazonStoreResult;
   walmart: StoreResult;
   samsclub: StoreResult;
+  sizeMismatch: boolean;
 };
+
+// Normalise all weight units to oz so lb vs oz can be compared numerically.
+// fl oz, count, rolls, pack stay as-is (already normalised by parseUnit).
+function toComparableSize(parsed: ParsedUnit | null): { quantity: number; unit: string } | null {
+  if (!parsed) return null;
+  if (parsed.unit === "lb") return { quantity: parsed.quantity * 16, unit: "oz" };
+  if (parsed.unit === "g")  return { quantity: parsed.quantity / 28.3495, unit: "oz" };
+  if (parsed.unit === "kg") return { quantity: parsed.quantity * 35.274, unit: "oz" };
+  return parsed; // fl oz, oz, count, rolls, pack
+}
+
+function checkSizeMismatch(a: ParsedUnit | null, b: ParsedUnit | null): boolean {
+  const aSize = toComparableSize(a);
+  const bSize = toComparableSize(b);
+  if (!aSize || !bSize) return false;
+  if (aSize.unit !== bSize.unit) return true; // e.g. count vs oz
+  const ratio = Math.max(aSize.quantity, bSize.quantity) /
+                Math.min(aSize.quantity, bSize.quantity);
+  return ratio > 2;
+}
 
 async function tryAmazonScrape(itemName: string): Promise<AmazonStoreResult | null> {
   try {
@@ -102,11 +124,18 @@ export async function POST(request: Request) {
     const cached = await getCachedPrice(item.name);
     if (cached) {
       console.log(`CACHED: ${item.name}`);
+      const cachedAmazon = cached.amazon ?? { ...EMPTY_AMAZON, productName: item.name };
+      const cachedWalmart = cached.walmart ?? { price: null, productName: item.name };
+      const sizeMismatch = checkSizeMismatch(
+        parseUnit(cachedAmazon.productName),
+        parseUnit(cachedWalmart.productName)
+      );
       pricedItems.push({
         ...item,
-        amazon: cached.amazon ?? { ...EMPTY_AMAZON, productName: item.name },
-        walmart: cached.walmart ?? { price: null, productName: item.name },
+        amazon: { ...cachedAmazon, annualSavings: sizeMismatch ? null : cachedAmazon.annualSavings },
+        walmart: cachedWalmart,
         samsclub: { price: null, productName: item.name },
+        sizeMismatch,
       });
       continue;
     }
@@ -127,11 +156,21 @@ export async function POST(request: Request) {
 
     await setCachedPrice(item.name, { amazon, walmart });
 
+    const sizeMismatch = checkSizeMismatch(
+      amazon ? parseUnit(amazon.productName) : null,
+      walmart ? parseUnit(walmart.productName) : null
+    );
+
+    const finalAmazon: AmazonStoreResult = amazon
+      ? { ...amazon, annualSavings: sizeMismatch ? null : amazon.annualSavings }
+      : { ...EMPTY_AMAZON, productName: item.name };
+
     pricedItems.push({
       ...item,
-      amazon: amazon ?? { ...EMPTY_AMAZON, productName: item.name },
+      amazon: finalAmazon,
       walmart: walmart ?? { price: null, productName: item.name },
       samsclub: { price: null, productName: item.name },
+      sizeMismatch,
     });
   }
 
