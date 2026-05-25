@@ -31,7 +31,6 @@ export default function ResultsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [excludedItems, setExcludedItems] = useState<GroceryItem[]>([]);
-  const [paidPrices, setPaidPrices] = useState<Record<number, string>>({});
 
   useEffect(() => {
     const excluded = sessionStorage.getItem("slashcart_excluded");
@@ -72,27 +71,14 @@ export default function ResultsPage() {
   const cheapestStore = allStoreTotals.length > 0
     ? allStoreTotals.reduce((a, b) => (a.total < b.total ? a : b)).store
     : null;
-  const priciest = allStoreTotals.length > 1
-    ? allStoreTotals.reduce((a, b) => (a.total > b.total ? a : b))
-    : null;
-  const storeSavings = cheapestStore && priciest
-    ? priciest.total - allStoreTotals.find((s) => s.store === cheapestStore)!.total
+  const storeSavings = allStoreTotals.length > 1
+    ? allStoreTotals.reduce((a, b) => (a.total > b.total ? a : b)).total -
+      allStoreTotals.find((s) => s.store === cheapestStore)!.total
     : 0;
 
   const totalAnnualSavings = Math.round(
     items.reduce((sum, item) => sum + (item.amazon.annualSavings ?? 0), 0) * 100
   ) / 100;
-
-  const totalSavings = items.reduce((sum, item, i) => {
-    const bestPrice = Math.min(
-      item.amazon.price ?? Infinity,
-      item.walmart.price ?? Infinity
-    );
-    const paid = parseFloat(paidPrices[i] ?? "");
-    return bestPrice < Infinity && !isNaN(paid) && paid > bestPrice
-      ? sum + (paid - bestPrice)
-      : sum;
-  }, 0);
 
   const excludedPreview =
     excludedItems.slice(0, 3).map((i) => i.name).join(", ") +
@@ -133,20 +119,6 @@ export default function ResultsPage() {
         </div>
       )}
 
-      {/* Store savings banner */}
-      {cheapestStore && priciest && storeSavings > 0.01 && (
-        <div className="mb-6 rounded-xl bg-[#1e3050] border border-[#1e3050] px-5 py-3">
-          <p className="text-[#94a3b8] text-sm">
-            <span className="text-[#e2e8f0] font-medium">{cheapestStore}</span> is cheapest this trip — save{" "}
-            <span className="text-[#e2e8f0] font-bold">${storeSavings.toFixed(2)}</span>{" "}
-            vs {priciest.store}
-          </p>
-          <p className="text-[#475569] text-xs mt-0.5">
-            {allStoreTotals.map((s) => `${s.store}: $${s.total.toFixed(2)}`).join(" · ")}
-          </p>
-        </div>
-      )}
-
       {/* Item list */}
       <div className="space-y-3 mb-8">
         {items.map((item, i) => {
@@ -179,19 +151,6 @@ export default function ResultsPage() {
             amazonCheapest = minPrice !== null && item.amazon.price === minPrice;
             walmartCheapest = minPrice !== null && item.walmart.price === minPrice;
           }
-
-          const bestPrice = Math.min(
-            item.amazon.price ?? Infinity,
-            item.walmart.price ?? Infinity
-          );
-          const paid = parseFloat(paidPrices[i] ?? "");
-          const itemSavings =
-            bestPrice < Infinity && !isNaN(paid) && paid > bestPrice
-              ? paid - bestPrice
-              : null;
-
-          const hasSomePrice =
-            item.amazon.price !== null || item.walmart.price !== null;
 
           const bulkPerUnit =
             item.amazon.bulkPrice !== null && item.amazon.bulkQuantity !== null
@@ -336,35 +295,6 @@ export default function ResultsPage() {
                 </div>
               </div>
 
-              {/* What did you pay? */}
-              {hasSomePrice && (
-                <div className="mt-3 pt-3 border-t border-[#1e3050] flex items-center gap-3">
-                  <label className="text-[#475569] text-xs whitespace-nowrap">
-                    What did you pay?
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#475569] text-xs pointer-events-none">
-                      $
-                    </span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      placeholder="0.00"
-                      value={paidPrices[i] ?? ""}
-                      onChange={(e) =>
-                        setPaidPrices((prev) => ({ ...prev, [i]: e.target.value }))
-                      }
-                      className="w-24 pl-5 pr-2 py-1.5 rounded-lg bg-[#142036] border border-[#1e3050] text-[#e2e8f0] text-xs focus:outline-none focus:ring-1 focus:ring-[#22c55e] transition"
-                    />
-                  </div>
-                  {itemSavings !== null && (
-                    <span className="text-[#22c55e] text-xs font-medium">
-                      Save ${itemSavings.toFixed(2)}
-                    </span>
-                  )}
-                </div>
-              )}
             </div>
           );
         })}
@@ -396,18 +326,6 @@ export default function ResultsPage() {
           );
         })}
       </div>
-
-      {/* "What you paid" savings */}
-      {totalSavings > 0 && (
-        <div className="rounded-xl bg-[#22c55e]/10 border border-[#22c55e]/30 px-4 py-4 flex items-center justify-between mb-3">
-          <span className="text-[#22c55e] font-medium text-sm">
-            Estimated savings vs. what you paid
-          </span>
-          <span className="text-[#22c55e] font-bold text-xl">
-            ${totalSavings.toFixed(2)}
-          </span>
-        </div>
-      )}
 
       {/* Total annual bulk savings */}
       {totalAnnualSavings > 0 && (
