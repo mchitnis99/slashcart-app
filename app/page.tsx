@@ -50,7 +50,7 @@ export default function HomePage() {
       <div className="mt-16 grid grid-cols-3 gap-6 max-w-xl mx-auto text-center">
         {[
           { icon: "🧾", label: "Paste or snap a list" },
-          { icon: "🛒", label: "Amazon prices" },
+          { icon: "🛒", label: "Amazon & Walmart prices" },
           { icon: "💸", label: "See what you save" },
         ].map(({ icon, label }) => (
           <div key={label} className="space-y-1">
