@@ -12,6 +12,7 @@ export default function GroceryInput() {
   const [text, setText] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -22,11 +23,31 @@ export default function GroceryInput() {
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (file) captureFile(file);
+  }
+
+  function captureFile(file: File) {
     setImageFile(file);
     const reader = new FileReader();
     reader.onload = (ev) => setImagePreview(ev.target?.result as string);
     reader.readAsDataURL(file);
+  }
+
+  function handleDragOver(e: React.DragEvent) {
+    e.preventDefault();
+    setIsDragging(true);
+  }
+
+  function handleDragLeave(e: React.DragEvent) {
+    e.preventDefault();
+    setIsDragging(false);
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) captureFile(file);
   }
 
   function removeImage() {
@@ -154,18 +175,25 @@ export default function GroceryInput() {
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
-          className="w-full rounded-xl border border-dashed border-[#1e3050] bg-[#142036] hover:border-[#22c55e] hover:bg-[#0f2030] text-[#94a3b8] hover:text-[#22c55e] py-6 text-sm flex flex-col items-center gap-2 transition"
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          className={`w-full rounded-xl border border-dashed py-6 text-sm flex flex-col items-center gap-2 transition ${
+            isDragging
+              ? "border-[#22c55e] bg-[#0f2030] text-[#22c55e]"
+              : "border-[#1e3050] bg-[#142036] hover:border-[#22c55e] hover:bg-[#0f2030] text-[#94a3b8] hover:text-[#22c55e]"
+          }`}
         >
           <span className="text-2xl">📷</span>
-          <span>Upload a photo of your grocery list or store receipt</span>
-          <span className="text-xs text-[#475569]">JPG, PNG, WEBP supported</span>
+          <span>Upload or drag a photo of your grocery list or receipt</span>
+          <span className="text-xs text-[#475569]">JPG, PNG, WEBP, HEIC supported</span>
         </button>
       )}
 
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/jpeg,image/png,image/webp,image/gif"
+        accept="image/*,.jpg,.jpeg,.png,.gif,.webp,.heic,.heif"
         onChange={handleFileChange}
         className="hidden"
       />
