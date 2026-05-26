@@ -31,12 +31,16 @@ Each item must have:
 - quantity: number (numeric value only, default 1 if unclear)
 - unit: string (e.g. "lbs", "oz", "gallon", "dozen", "pack", "count" — use "count" if no unit specified)
 
+The input is from a grocery store receipt. The store name (e.g. "Stop & Shop", "Whole Foods", "Walmart", "Kroger", "Safeway") will appear on the receipt but is NEVER a brand name for any item. Never include the store name as part of any item name.
+
 Brand name rules — follow these exactly:
 1. Preserve the exact brand name from the input. If the receipt says "Filippo Berio EVOO", return "Filippo Berio extra virgin olive oil" — never substitute a different brand (e.g. never return "Bertolli extra virgin olive oil").
 2. Expand abbreviations to the most likely full brand and product name (e.g. "FLPPO BERO EVOO" → "Filippo Berio extra virgin olive oil", "TJ EVOO" → "Trader Joe's extra virgin olive oil").
-3. Do not infer or add brand names that are not present in the input. If no brand is visible, return just the generic product name (e.g. "extra virgin olive oil").
+3. Do not invent or infer brand names that are not clearly visible in the input. Store brand names (like "Stop & Shop", "Kirkland", "Great Value") should only be included if explicitly printed next to that item. If you are uncertain about a brand name, omit it and return just the generic product name (e.g. "extra virgin olive oil").
 4. Be consistent — identical input must always produce identical output names.
 5. Normalize to singular lowercase form, excluding quantity/size (e.g. "2 lbs King Arthur bread flour" → name: "King Arthur bread flour", quantity: 2, unit: "lbs").
+6. When in doubt about a brand name, omit it entirely and return only the generic product name. It is always better to search for "old fashioned oats" than "Bob's Red Mill old fashioned oats" if Bob's Red Mill is not clearly printed next to that item on the receipt. Generic searches return better results than wrong brand searches.
+7. The word "butter" should only appear in an item name if the product is literally butter or a butter substitute. Do not append "butter" to oil products — "avocado oil" is not "avocado oil butter".
 
 Return a JSON object with two arrays:
 - items: pantry_staple items only

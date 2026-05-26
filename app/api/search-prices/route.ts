@@ -169,15 +169,33 @@ export async function POST(request: Request) {
     };
   }
 
-  const pricedItems = await Promise.all(items.map(processItem));
+  const encoder = new TextEncoder();
+  const pricedItems: (PricedItem | null)[] = new Array(items.length).fill(null);
 
-  const flour = pricedItems.find((i) => i.name.toLowerCase().includes("flour"));
-  if (flour) console.log("[response item]", JSON.stringify(flour, null, 2));
+  const stream = new ReadableStream({
+    async start(controller) {
+      await Promise.all(
+        items.map(async (item, index) => {
+          const result = await processItem(item);
+          pricedItems[index] = result;
+          controller.enqueue(
+            encoder.encode(JSON.stringify({ type: "item", index, data: result }) + "\n")
+          );
+        })
+      );
 
-  const round = (n: number) => Math.round(n * 100) / 100;
-  const amazonTotal = round(pricedItems.reduce((s, i) => s + (i.amazon.price ?? 0), 0));
-  const walmartTotal = round(pricedItems.reduce((s, i) => s + (i.walmart.price ?? 0), 0));
-  const samsclubTotal = 0;
+      const round = (n: number) => Math.round(n * 100) / 100;
+      const filled = pricedItems as PricedItem[];
+      const amazonTotal = round(filled.reduce((s, i) => s + (i.amazon.price ?? 0), 0));
+      const walmartTotal = round(filled.reduce((s, i) => s + (i.walmart.price ?? 0), 0));
+      controller.enqueue(
+        encoder.encode(JSON.stringify({ type: "totals", amazonTotal, walmartTotal, samsclubTotal: 0 }) + "\n")
+      );
+      controller.close();
+    },
+  });
 
-  return Response.json({ items: pricedItems, amazonTotal, walmartTotal, samsclubTotal });
+  return new Response(stream, {
+    headers: { "Content-Type": "application/x-ndjson; charset=utf-8" },
+  });
 }
