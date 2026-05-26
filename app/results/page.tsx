@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { parseUnit } from "@/lib/utils/parseUnit";
+import { parseSize, toComparableSize } from "@/lib/utils/parseSize";
 
 type GroceryItem = { name: string; quantity: number; unit: string };
 type StoreResult = { price: number | null; productName: string };
@@ -19,10 +19,13 @@ type PriceData = { items: PricedItem[]; amazonTotal: number; walmartTotal: numbe
 
 function buildAmazonCartUrl(items: PricedItem[]): string | null {
   const asins = items
+    .filter((item) => !item.sizeMismatch)
     .map((item) => item.amazon.bulkAsin ?? item.amazon.asin)
     .filter((asin): asin is string => typeof asin === "string" && asin.length > 0);
   if (asins.length === 0) return null;
-  const params = asins.map((asin, i) => `ASIN.${i + 1}=${asin}&Qty.${i + 1}=1`).join("&");
+  const params = asins
+    .map((asin, i) => `ASIN.${i + 1}=${asin}&Quantity.${i + 1}=1`)
+    .join("&");
   return `https://www.amazon.com/gp/aws/cart/add.html?${params}`;
 }
 
@@ -122,8 +125,10 @@ export default function ResultsPage() {
       {/* Item list */}
       <div className="space-y-3 mb-8">
         {items.map((item, i) => {
-          const amazonUnit = item.amazon.productName ? parseUnit(item.amazon.productName) : null;
-          const walmartUnit = item.walmart.productName ? parseUnit(item.walmart.productName) : null;
+          const amazonUnit = item.amazon.productName ? parseSize(item.amazon.productName) : null;
+          const walmartUnit = item.walmart.productName ? parseSize(item.walmart.productName) : null;
+
+          // Display: price per unit in the product's own unit (e.g. $/oz, $/lb)
           const amazonPricePerUnit =
             amazonUnit && item.amazon.price !== null
               ? item.amazon.price / amazonUnit.quantity
@@ -133,20 +138,32 @@ export default function ResultsPage() {
               ? item.walmart.price / walmartUnit.quantity
               : null;
 
-          const unitsMatch =
+          // Winner comparison: normalize weight→oz, volume→fl oz so lb vs oz
+          // and ml vs fl oz are resolved correctly before comparing.
+          const amazonNorm = toComparableSize(amazonUnit);
+          const walmartNorm = toComparableSize(walmartUnit);
+          const amazonNormPPU =
+            amazonNorm && item.amazon.price !== null
+              ? item.amazon.price / amazonNorm.quantity
+              : null;
+          const walmartNormPPU =
+            walmartNorm && item.walmart.price !== null
+              ? item.walmart.price / walmartNorm.quantity
+              : null;
+          const unitsComparable =
             !item.sizeMismatch &&
-            amazonPricePerUnit !== null &&
-            walmartPricePerUnit !== null &&
-            amazonUnit!.unit === walmartUnit!.unit;
+            amazonNormPPU !== null &&
+            walmartNormPPU !== null &&
+            amazonNorm!.unit === walmartNorm!.unit;
 
           let amazonCheapest: boolean;
           let walmartCheapest: boolean;
           if (item.sizeMismatch) {
             amazonCheapest = false;
             walmartCheapest = false;
-          } else if (unitsMatch) {
-            amazonCheapest = amazonPricePerUnit! <= walmartPricePerUnit!;
-            walmartCheapest = walmartPricePerUnit! <= amazonPricePerUnit!;
+          } else if (unitsComparable) {
+            amazonCheapest = amazonNormPPU! <= walmartNormPPU!;
+            walmartCheapest = walmartNormPPU! <= amazonNormPPU!;
           } else {
             const prices = [item.amazon.price, item.walmart.price].filter(
               (p): p is number => p !== null

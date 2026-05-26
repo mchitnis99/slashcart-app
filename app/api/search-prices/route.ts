@@ -1,7 +1,8 @@
 export const maxDuration = 60;
 
 import { getCachedPrice, setCachedPrice } from "@/lib/cache";
-import { parseUnit, type ParsedUnit } from "@/lib/utils/parseUnit";
+import { type ParsedUnit } from "@/lib/utils/parseUnit";
+import { parseSize, toComparableSize } from "@/lib/utils/parseSize";
 
 type GroceryItem = {
   name: string;
@@ -14,7 +15,8 @@ type StoreResult = {
   productName: string;
 };
 
-type AmazonStoreResult = {
+// Raw scraped fields only — matches what's stored in the Supabase cache.
+type AmazonRaw = {
   price: number | null;
   productName: string;
   asin: string | null;
@@ -22,6 +24,10 @@ type AmazonStoreResult = {
   bulkPrice: number | null;
   bulkQuantity: number | null;
   bulkAsin: string | null;
+};
+
+// Enriched type returned to the client — includes derived annualSavings.
+type AmazonStoreResult = AmazonRaw & {
   annualSavings: number | null;
 };
 
@@ -35,40 +41,30 @@ type PricedItem = {
   sizeMismatch: boolean;
 };
 
-// Normalise all weight units to oz so lb vs oz can be compared numerically.
-// fl oz, count, rolls, pack stay as-is (already normalised by parseUnit).
-function toComparableSize(parsed: ParsedUnit | null): { quantity: number; unit: string } | null {
-  if (!parsed) return null;
-  if (parsed.unit === "lb") return { quantity: parsed.quantity * 16, unit: "oz" };
-  if (parsed.unit === "g")  return { quantity: parsed.quantity / 28.3495, unit: "oz" };
-  if (parsed.unit === "kg") return { quantity: parsed.quantity * 35.274, unit: "oz" };
-  return parsed; // fl oz, oz, count, rolls, pack
-}
 
 function checkSizeMismatch(a: ParsedUnit | null, b: ParsedUnit | null): boolean {
   const aSize = toComparableSize(a);
   const bSize = toComparableSize(b);
   if (!aSize || !bSize) return false;
-  if (aSize.unit !== bSize.unit) return true; // e.g. count vs oz
-  const ratio = Math.max(aSize.quantity, bSize.quantity) /
-                Math.min(aSize.quantity, bSize.quantity);
-  return ratio > 2;
+  return aSize.unit !== bSize.unit; // only flag when unit types are incomparable
 }
 
-async function tryAmazonScrape(itemName: string): Promise<AmazonStoreResult | null> {
+function computeAnnualSavings(raw: AmazonRaw): number | null {
+  if (raw.regularPrice === null || raw.bulkPrice === null || raw.bulkQuantity === null) return null;
+  const savingsPerUnit = raw.regularPrice - raw.bulkPrice / raw.bulkQuantity;
+  if (savingsPerUnit <= 0) return null;
+  return Math.round(savingsPerUnit * 12 * 100) / 100;
+}
+
+function toAmazonStoreResult(raw: AmazonRaw, sizeMismatch: boolean): AmazonStoreResult {
+  return { ...raw, annualSavings: sizeMismatch ? null : computeAnnualSavings(raw) };
+}
+
+async function tryAmazonScrape(itemName: string): Promise<AmazonRaw | null> {
   try {
     const { scrapeAmazonPrice } = await import("@/lib/scrapers/amazon");
     const result = await scrapeAmazonPrice(itemName);
     if (!result) return null;
-
-    let annualSavings: number | null = null;
-    if (result.regularPrice !== null && result.bulkPrice !== null && result.bulkQuantity !== null) {
-      const savingsPerUnit = result.regularPrice - result.bulkPrice / result.bulkQuantity;
-      if (savingsPerUnit > 0) {
-        annualSavings = Math.round(savingsPerUnit * 12 * 100) / 100;
-      }
-    }
-
     return {
       price: result.price,
       productName: result.name,
@@ -77,7 +73,6 @@ async function tryAmazonScrape(itemName: string): Promise<AmazonStoreResult | nu
       bulkPrice: result.bulkPrice,
       bulkQuantity: result.bulkQuantity,
       bulkAsin: result.bulkAsin,
-      annualSavings,
     };
   } catch (err) {
     console.error(`[search-prices] Amazon error:`, err);
@@ -97,7 +92,7 @@ async function tryWalmartScrape(itemName: string): Promise<StoreResult | null> {
   }
 }
 
-const EMPTY_AMAZON: AmazonStoreResult = {
+const EMPTY_AMAZON_RAW: AmazonRaw = {
   price: null,
   productName: "",
   asin: null,
@@ -105,7 +100,6 @@ const EMPTY_AMAZON: AmazonStoreResult = {
   bulkPrice: null,
   bulkQuantity: null,
   bulkAsin: null,
-  annualSavings: null,
 };
 
 export async function POST(request: Request) {
@@ -124,15 +118,17 @@ export async function POST(request: Request) {
     const cached = await getCachedPrice(item.name);
     if (cached) {
       console.log(`CACHED: ${item.name}`);
-      const cachedAmazon = cached.amazon ?? { ...EMPTY_AMAZON, productName: item.name };
+      const cachedAmazonRaw: AmazonRaw = cached.amazon ?? { ...EMPTY_AMAZON_RAW, productName: item.name };
       const cachedWalmart = cached.walmart ?? { price: null, productName: item.name };
+      const amazonSize = parseSize(cachedAmazonRaw.productName, "Amazon");
+      console.log("[parseSize]", cachedAmazonRaw.productName, "→", amazonSize?.quantity, amazonSize?.unit);
       const sizeMismatch = checkSizeMismatch(
-        parseUnit(cachedAmazon.productName),
-        parseUnit(cachedWalmart.productName)
+        amazonSize,
+        parseSize(cachedWalmart.productName, "Walmart")
       );
       pricedItems.push({
         ...item,
-        amazon: { ...cachedAmazon, annualSavings: sizeMismatch ? null : cachedAmazon.annualSavings },
+        amazon: toAmazonStoreResult(cachedAmazonRaw, sizeMismatch),
         walmart: cachedWalmart,
         samsclub: { price: null, productName: item.name },
         sizeMismatch,
@@ -156,23 +152,26 @@ export async function POST(request: Request) {
 
     await setCachedPrice(item.name, { amazon, walmart });
 
+    const amazonSize = amazon ? parseSize(amazon.productName, "Amazon") : null;
+    console.log("[parseSize]", amazon?.productName, "→", amazonSize?.quantity, amazonSize?.unit);
     const sizeMismatch = checkSizeMismatch(
-      amazon ? parseUnit(amazon.productName) : null,
-      walmart ? parseUnit(walmart.productName) : null
+      amazonSize,
+      walmart ? parseSize(walmart.productName, "Walmart") : null
     );
 
-    const finalAmazon: AmazonStoreResult = amazon
-      ? { ...amazon, annualSavings: sizeMismatch ? null : amazon.annualSavings }
-      : { ...EMPTY_AMAZON, productName: item.name };
+    const amazonRaw: AmazonRaw = amazon ?? { ...EMPTY_AMAZON_RAW, productName: item.name };
 
     pricedItems.push({
       ...item,
-      amazon: finalAmazon,
+      amazon: toAmazonStoreResult(amazonRaw, sizeMismatch),
       walmart: walmart ?? { price: null, productName: item.name },
       samsclub: { price: null, productName: item.name },
       sizeMismatch,
     });
   }
+
+  const flour = pricedItems.find((i) => i.name.toLowerCase().includes("flour"));
+  if (flour) console.log("[response item]", JSON.stringify(flour, null, 2));
 
   const round = (n: number) => Math.round(n * 100) / 100;
   const amazonTotal = round(pricedItems.reduce((s, i) => s + (i.amazon.price ?? 0), 0));

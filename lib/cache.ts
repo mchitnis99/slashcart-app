@@ -5,6 +5,8 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+// Only raw scraped fields are cached — no derived values (e.g. annualSavings).
+// Derived values are always recomputed at read time so logic changes take effect immediately.
 type CachedPriceData = {
   amazon: {
     price: number | null;
@@ -14,7 +16,6 @@ type CachedPriceData = {
     bulkPrice: number | null;
     bulkQuantity: number | null;
     bulkAsin: string | null;
-    annualSavings: number | null;
   } | null;
   walmart: {
     price: number | null;
