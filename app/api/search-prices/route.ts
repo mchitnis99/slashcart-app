@@ -92,6 +92,10 @@ async function tryWalmartScrape(itemName: string): Promise<StoreResult | null> {
   }
 }
 
+function normalizeCacheKey(name: string): string {
+  return name.trim().toLowerCase().split(/\s+/).sort().join(" ");
+}
+
 const EMPTY_AMAZON_RAW: AmazonRaw = {
   price: null,
   productName: "",
@@ -109,15 +113,14 @@ export async function POST(request: Request) {
   }
 
   const items: GroceryItem[] = body.items;
-  const pricedItems: PricedItem[] = [];
 
-  for (let i = 0; i < items.length; i++) {
-    const item = items[i];
+  async function processItem(item: GroceryItem): Promise<PricedItem> {
+    const cacheKey = normalizeCacheKey(item.name);
+    console.log(`[cache] key="${cacheKey}"`);
+    const cached = await getCachedPrice(cacheKey);
 
-    // Check cache first — skip scraping entirely on a hit.
-    const cached = await getCachedPrice(item.name);
     if (cached) {
-      console.log(`CACHED: ${item.name}`);
+      console.log(`[cache] HIT: "${cacheKey}"`);
       const cachedAmazonRaw: AmazonRaw = cached.amazon ?? { ...EMPTY_AMAZON_RAW, productName: item.name };
       const cachedWalmart = cached.walmart ?? { price: null, productName: item.name };
       const amazonSize = parseSize(cachedAmazonRaw.productName, "Amazon");
@@ -126,20 +129,16 @@ export async function POST(request: Request) {
         amazonSize,
         parseSize(cachedWalmart.productName, "Walmart")
       );
-      pricedItems.push({
+      return {
         ...item,
         amazon: toAmazonStoreResult(cachedAmazonRaw, sizeMismatch),
         walmart: cachedWalmart,
         samsclub: { price: null, productName: item.name },
         sizeMismatch,
-      });
-      continue;
+      };
     }
 
-    if (i > 0) await new Promise((r) => setTimeout(r, 200));
-
-    // Amazon + Walmart in parallel per item (different APIs, no shared rate limit).
-    // Items remain sequential to avoid hammering either API.
+    console.log(`[cache] MISS: "${cacheKey}"`);
     const [amazon, walmart] = await Promise.all([
       tryAmazonScrape(item.name),
       tryWalmartScrape(item.name),
@@ -150,7 +149,8 @@ export async function POST(request: Request) {
     if (walmart) console.log(`SCRAPED walmart: ${item.name} → $${walmart.price}`);
     else console.log(`UNAVAILABLE walmart: ${item.name}`);
 
-    await setCachedPrice(item.name, { amazon, walmart });
+    const writeOk = await setCachedPrice(cacheKey, { amazon, walmart });
+    console.log(`[cache] write "${cacheKey}": ${writeOk ? "ok" : "FAILED"}`);
 
     const amazonSize = amazon ? parseSize(amazon.productName, "Amazon") : null;
     console.log("[parseSize]", amazon?.productName, "→", amazonSize?.quantity, amazonSize?.unit);
@@ -160,15 +160,16 @@ export async function POST(request: Request) {
     );
 
     const amazonRaw: AmazonRaw = amazon ?? { ...EMPTY_AMAZON_RAW, productName: item.name };
-
-    pricedItems.push({
+    return {
       ...item,
       amazon: toAmazonStoreResult(amazonRaw, sizeMismatch),
       walmart: walmart ?? { price: null, productName: item.name },
       samsclub: { price: null, productName: item.name },
       sizeMismatch,
-    });
+    };
   }
+
+  const pricedItems = await Promise.all(items.map(processItem));
 
   const flour = pricedItems.find((i) => i.name.toLowerCase().includes("flour"));
   if (flour) console.log("[response item]", JSON.stringify(flour, null, 2));

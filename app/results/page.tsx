@@ -36,6 +36,8 @@ export default function ResultsPage() {
   const [excludedItems, setExcludedItems] = useState<GroceryItem[]>([]);
 
   useEffect(() => {
+    const controller = new AbortController();
+
     const excluded = sessionStorage.getItem("slashcart_excluded");
     if (excluded) {
       try { setExcludedItems(JSON.parse(excluded)); } catch {}
@@ -55,10 +57,17 @@ export default function ResultsPage() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ items, zipCode }),
+      signal: controller.signal,
     })
       .then((r) => r.json())
       .then((data) => { setPriceData(data); setLoading(false); })
-      .catch(() => { setError("Failed to load prices. Please try again."); setLoading(false); });
+      .catch((err) => {
+        if (err.name === "AbortError") return;
+        setError("Failed to load prices. Please try again.");
+        setLoading(false);
+      });
+
+    return () => controller.abort();
   }, []);
 
   if (loading) return <LoadingState />;

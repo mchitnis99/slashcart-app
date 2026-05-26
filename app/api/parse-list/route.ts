@@ -27,9 +27,16 @@ Pantry staples: canned goods, dry goods (pasta, rice, flour, oats), cereals, sna
 Fresh items: meat, poultry, fish/seafood, fresh produce (fruits and vegetables), dairy, deli, bakery.
 
 Each item must have:
-- name: string (normalized, singular form, e.g. "chicken breast" not "2 lbs chicken breasts")
+- name: string (see brand name rules below)
 - quantity: number (numeric value only, default 1 if unclear)
 - unit: string (e.g. "lbs", "oz", "gallon", "dozen", "pack", "count" — use "count" if no unit specified)
+
+Brand name rules — follow these exactly:
+1. Preserve the exact brand name from the input. If the receipt says "Filippo Berio EVOO", return "Filippo Berio extra virgin olive oil" — never substitute a different brand (e.g. never return "Bertolli extra virgin olive oil").
+2. Expand abbreviations to the most likely full brand and product name (e.g. "FLPPO BERO EVOO" → "Filippo Berio extra virgin olive oil", "TJ EVOO" → "Trader Joe's extra virgin olive oil").
+3. Do not infer or add brand names that are not present in the input. If no brand is visible, return just the generic product name (e.g. "extra virgin olive oil").
+4. Be consistent — identical input must always produce identical output names.
+5. Normalize to singular lowercase form, excluding quantity/size (e.g. "2 lbs King Arthur bread flour" → name: "King Arthur bread flour", quantity: 2, unit: "lbs").
 
 Return a JSON object with two arrays:
 - items: pantry_staple items only
@@ -40,7 +47,7 @@ Rules:
 - Return ONLY valid JSON — no markdown, no explanation
 
 Example output:
-{"items":[{"name":"pasta","quantity":1,"unit":"lbs"},{"name":"olive oil","quantity":1,"unit":"count"}],"excluded_items":[{"name":"chicken breast","quantity":2,"unit":"lbs"},{"name":"milk","quantity":1,"unit":"gallon"}]}`;
+{"items":[{"name":"King Arthur bread flour","quantity":1,"unit":"lbs"},{"name":"Filippo Berio extra virgin olive oil","quantity":1,"unit":"count"}],"excluded_items":[{"name":"chicken breast","quantity":2,"unit":"lbs"},{"name":"milk","quantity":1,"unit":"gallon"}]}`;
 
   const userContent: Anthropic.MessageParam["content"] = [];
 

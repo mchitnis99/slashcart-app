@@ -43,14 +43,19 @@ export async function getCachedPrice(searchTerm: string): Promise<CachedPriceDat
 export async function setCachedPrice(
   searchTerm: string,
   data: CachedPriceData
-): Promise<void> {
+): Promise<boolean> {
   try {
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-    await supabase.from("price_cache").upsert(
-      { search_term: searchTerm, data, expires_at: expiresAt },
+    const now = Date.now();
+    const expiresAt = new Date(now + 24 * 60 * 60 * 1000).toISOString();
+    const cachedAt = new Date(now).toISOString();
+    const { error } = await supabase.from("price_cache").upsert(
+      { search_term: searchTerm, data, expires_at: expiresAt, cached_at: cachedAt },
       { onConflict: "search_term" }
     );
-  } catch {
-    // Cache write failure is non-fatal
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    console.error("[cache] write error:", err);
+    return false;
   }
 }
