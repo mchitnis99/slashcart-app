@@ -45,19 +45,30 @@ function getWinners(item: PricedItem): { amazonCheapest: boolean; walmartCheapes
   };
 }
 
+function defaultStore(item: PricedItem): "amazon" | "walmart" {
+  return getWinners(item).walmartCheapest ? "walmart" : "amazon";
+}
+
 function buildAmazonCartUrl(items: PricedItem[]): string | null {
   const asins = items
-    .filter((item) => !item.sizeMismatch)
     .map((item) => item.amazon.bulkAsin ?? item.amazon.asin)
     .filter((asin): asin is string => typeof asin === "string" && asin.length > 0);
   if (asins.length === 0) return null;
   const params = asins
     .map((asin, i) => `ASIN.${i + 1}=${asin}&Quantity.${i + 1}=1`)
     .join("&");
-  return `https://www.amazon.com/gp/aws/cart/add.html?${params}`;
+  return `https://www.amazon.com/gp/aws/cart/add.html?${params}&tag=slashcart-20`;
 }
 
-function PricedItemCard({ item }: { item: PricedItem }) {
+function PricedItemCard({
+  item,
+  selected,
+  onSelect,
+}: {
+  item: PricedItem;
+  selected: "amazon" | "walmart";
+  onSelect: (store: "amazon" | "walmart") => void;
+}) {
   const amazonUnit = item.amazon.productName ? parseSize(item.amazon.productName) : null;
   const walmartUnit = item.walmart.productName ? parseSize(item.walmart.productName) : null;
 
@@ -197,6 +208,30 @@ function PricedItemCard({ item }: { item: PricedItem }) {
           )}
         </div>
       </div>
+
+      <div className="mt-3 flex gap-2">
+        {(["amazon", "walmart"] as const).map((store) => {
+          const available = store === "amazon" ? item.amazon.price !== null : item.walmart.price !== null;
+          const active = selected === store;
+          return (
+            <button
+              key={store}
+              type="button"
+              onClick={() => onSelect(store)}
+              disabled={!available}
+              className={`flex-1 text-xs py-1.5 rounded-lg border transition capitalize ${
+                !available
+                  ? "border-[#1e3050] bg-[#0d1830] text-[#2d3f5c] cursor-not-allowed"
+                  : active
+                  ? "border-[#22c55e] bg-[#22c55e]/10 text-[#22c55e] font-medium"
+                  : "border-[#1e3050] bg-[#0d1830] text-[#475569] hover:border-[#475569]"
+              }`}
+            >
+              {active ? "✓ " : ""}{store === "amazon" ? "Amazon" : "Walmart"}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -229,6 +264,7 @@ export default function ResultsPage() {
   const [groceryItems, setGroceryItems] = useState<GroceryItem[]>([]);
   const [pricedItems, setPricedItems] = useState<(PricedItem | null)[]>([]);
   const [totals, setTotals] = useState<Totals | null>(null);
+  const [storeSelections, setStoreSelections] = useState<Record<number, "amazon" | "walmart">>({});
 
   useEffect(() => {
     const controller = new AbortController();
@@ -299,20 +335,6 @@ export default function ResultsPage() {
   if (error) return <ErrorState message={error} />;
 
   const allLoaded = totals !== null;
-  const { amazonTotal, walmartTotal } = totals ?? { amazonTotal: 0, walmartTotal: 0 };
-
-  const allStoreTotals = [
-    { store: "Amazon",  total: amazonTotal  },
-    { store: "Walmart", total: walmartTotal },
-  ].filter((s) => s.total > 0);
-
-  const cheapestStore = allStoreTotals.length > 0
-    ? allStoreTotals.reduce((a, b) => (a.total < b.total ? a : b)).store
-    : null;
-  const storeSavings = allStoreTotals.length > 1
-    ? allStoreTotals.reduce((a, b) => (a.total > b.total ? a : b)).total -
-      allStoreTotals.find((s) => s.store === cheapestStore)!.total
-    : 0;
 
   const totalAnnualSavings = allLoaded
     ? Math.round(
@@ -328,7 +350,25 @@ export default function ResultsPage() {
     excludedItems.slice(0, 3).map((i) => i.name).join(", ") +
     (excludedItems.length > 3 ? ", etc." : "");
 
-  const amazonCartUrl = allLoaded ? buildAmazonCartUrl(pricedItems as PricedItem[]) : null;
+  const round = (n: number) => Math.round(n * 100) / 100;
+
+  // Derive selected items by iterating groceryItems so the index always
+  // matches storeSelections keys, regardless of pricedItems slot fill order.
+  const amazonSelectedItems: PricedItem[] = [];
+  const walmartSelectedItems: PricedItem[] = [];
+  if (allLoaded) {
+    groceryItems.forEach((_, i) => {
+      const item = pricedItems[i];
+      if (!item) return;
+      const store = storeSelections[i] ?? defaultStore(item);
+      if (store === "amazon") amazonSelectedItems.push(item);
+      else walmartSelectedItems.push(item);
+    });
+  }
+
+  const amazonSelectedTotal = round(amazonSelectedItems.reduce((s, item) => s + (item.amazon.price ?? 0), 0));
+  const walmartSelectedTotal = round(walmartSelectedItems.reduce((s, item) => s + (item.walmart.price ?? 0), 0));
+  const amazonCartUrl = amazonSelectedItems.length > 0 ? buildAmazonCartUrl(amazonSelectedItems) : null;
 
   return (
     <main className="flex flex-col flex-1 px-4 py-10 max-w-2xl mx-auto w-full">
@@ -370,35 +410,18 @@ export default function ResultsPage() {
         {groceryItems.map((groceryItem, i) => {
           const priced = pricedItems[i];
           return priced
-            ? <PricedItemCard key={i} item={priced} />
+            ? <PricedItemCard
+                key={i}
+                item={priced}
+                selected={storeSelections[i] ?? defaultStore(priced)}
+                onSelect={(store) => setStoreSelections((prev) => ({ ...prev, [i]: store }))}
+              />
             : <SkeletonCard key={i} {...groceryItem} />;
         })}
       </div>
 
       {allLoaded && (
         <>
-          <div className="grid grid-cols-2 gap-3 mb-3">
-            {[
-              { store: "Amazon",  total: amazonTotal  },
-              { store: "Walmart", total: walmartTotal },
-            ].map(({ store, total }) => {
-              const isCheapest = store === cheapestStore && storeSavings > 0.01;
-              return (
-                <div
-                  key={store}
-                  className={`rounded-xl border px-3 py-3 ${isCheapest ? "border-[#22c55e]/40 bg-[#22c55e]/5" : "border-[#1e3050] bg-[#142036]"}`}
-                >
-                  <p className={`text-xs font-medium mb-1 ${isCheapest ? "text-[#22c55e]" : "text-[#94a3b8]"}`}>
-                    {store}{isCheapest && " ✓"}
-                  </p>
-                  <p className={`font-bold text-lg ${isCheapest ? "text-[#22c55e]" : "text-[#e2e8f0]"}`}>
-                    {total > 0 ? `$${total.toFixed(2)}` : "—"}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
-
           {totalAnnualSavings > 0 && (
             <div className="rounded-xl bg-[#22c55e]/10 border border-[#22c55e]/30 px-4 py-4 flex items-center justify-between mb-4">
               <div>
@@ -413,16 +436,40 @@ export default function ResultsPage() {
             </div>
           )}
 
-          {amazonCartUrl && (
-            <a
-              href={amazonCartUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#22c55e] hover:bg-[#16a34a] text-white font-bold text-base px-6 py-4 transition-colors mb-6"
-            >
-              Add all to Amazon cart →
-            </a>
-          )}
+          <div className="space-y-3 mt-2 mb-2">
+            {amazonCartUrl && (
+              <div>
+                <p className="text-[#94a3b8] text-xs mb-2">
+                  {amazonSelectedItems.length} item{amazonSelectedItems.length !== 1 ? "s" : ""} on Amazon
+                  {" · "}<span className="text-[#e2e8f0] font-medium">${amazonSelectedTotal.toFixed(2)}</span>
+                </p>
+                <a
+                  href={amazonCartUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full flex items-center justify-center rounded-xl bg-[#22c55e] hover:bg-[#16a34a] text-white font-bold text-base px-6 py-4 transition-colors"
+                >
+                  Checkout on Amazon →
+                </a>
+              </div>
+            )}
+            {walmartSelectedItems.length > 0 && (
+              <div>
+                <p className="text-[#94a3b8] text-xs mb-2">
+                  {walmartSelectedItems.length} item{walmartSelectedItems.length !== 1 ? "s" : ""} on Walmart
+                  {" · "}<span className="text-[#e2e8f0] font-medium">${walmartSelectedTotal.toFixed(2)}</span>
+                </p>
+                <a
+                  href="https://www.walmart.com/cart"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full flex items-center justify-center rounded-xl border border-[#22c55e] text-[#22c55e] hover:bg-[#22c55e]/10 font-bold text-base px-6 py-4 transition-colors"
+                >
+                  Checkout on Walmart →
+                </a>
+              </div>
+            )}
+          </div>
         </>
       )}
 
