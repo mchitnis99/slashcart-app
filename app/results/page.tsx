@@ -49,10 +49,7 @@ function defaultStore(item: PricedItem): "amazon" | "walmart" {
   return getWinners(item).walmartCheapest ? "walmart" : "amazon";
 }
 
-function buildAmazonCartUrl(items: PricedItem[]): string | null {
-  const asins = items
-    .map((item) => item.amazon.bulkAsin ?? item.amazon.asin)
-    .filter((asin): asin is string => typeof asin === "string" && asin.length > 0);
+function buildAmazonCartUrl(asins: string[]): string | null {
   if (asins.length === 0) return null;
   const params = asins
     .map((asin, i) => `ASIN.${i + 1}=${asin}&Quantity.${i + 1}=1`)
@@ -64,10 +61,14 @@ function PricedItemCard({
   item,
   selected,
   onSelect,
+  bulkSelected,
+  onBulkToggle,
 }: {
   item: PricedItem;
   selected: "amazon" | "walmart";
   onSelect: (store: "amazon" | "walmart") => void;
+  bulkSelected: "single" | "bulk";
+  onBulkToggle: (v: "single" | "bulk") => void;
 }) {
   const amazonUnit = item.amazon.productName ? parseSize(item.amazon.productName) : null;
   const walmartUnit = item.walmart.productName ? parseSize(item.walmart.productName) : null;
@@ -78,6 +79,10 @@ function PricedItemCard({
     walmartUnit && item.walmart.price !== null ? item.walmart.price / walmartUnit.quantity : null;
 
   const { amazonCheapest, walmartCheapest } = getWinners(item);
+
+  const hasBulk =
+    item.amazon.bulkPrice !== null &&
+    item.amazon.bulkQuantity !== null;
 
   const bulkPerUnit =
     item.amazon.bulkPrice !== null && item.amazon.bulkQuantity !== null
@@ -98,46 +103,84 @@ function PricedItemCard({
 
       <div className="grid grid-cols-2 gap-3">
         <div className={`rounded-lg p-2.5 border ${amazonCheapest ? "border-[#22c55e]/40 bg-[#22c55e]/5" : "border-[#1e3050] bg-[#142036]"}`}>
-          <p className="text-[#64748b] text-xs font-medium mb-1">Amazon</p>
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-[#64748b] text-xs font-medium">Amazon</p>
+            {hasBulk && (
+              <div className="flex gap-0.5">
+                {(["single", "bulk"] as const).map((opt) => (
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => onBulkToggle(opt)}
+                    className={`text-[9px] px-1.5 py-0.5 rounded border transition capitalize ${
+                      bulkSelected === opt
+                        ? "border-[#22c55e] bg-[#22c55e]/10 text-[#22c55e]"
+                        : "border-[#1e3050] text-[#475569] hover:border-[#475569]"
+                    }`}
+                  >
+                    {opt}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           {item.amazon.price !== null ? (
             <>
-              <p className={`font-bold text-base leading-none mb-1 ${amazonCheapest ? "text-[#22c55e]" : "text-[#e2e8f0]"}`}>
-                ${(item.amazon.regularPrice ?? item.amazon.price).toFixed(2)}
-                {amazonCheapest && <span className="text-[10px] ml-0.5">✓</span>}
-              </p>
-              {amazonUnit && (
-                <p className="text-[#64748b] text-[11px] leading-none mb-0.5">
-                  {amazonUnit.quantity} {amazonUnit.unit}
-                </p>
-              )}
-              {!item.sizeMismatch && amazonPricePerUnit !== null && (
-                <p className="text-[#475569] text-[10px] leading-none mb-1">
-                  ${amazonPricePerUnit.toFixed(2)}/{amazonUnit!.unit}
-                </p>
-              )}
-              {item.amazon.productName !== item.name && (
-                <p className="text-[#475569] text-[10px] truncate mb-1" title={item.amazon.productName}>
-                  {item.amazon.productName}
-                </p>
-              )}
-              {!item.sizeMismatch && item.amazon.bulkPrice !== null && item.amazon.bulkQuantity !== null && bulkPerUnit !== null && (
-                <div className="mt-1.5 mb-1 rounded bg-[#0d1830] px-2 py-1.5 border border-[#1e3050]">
-                  <p className="text-[#94a3b8] text-[10px] leading-snug">
-                    ${item.amazon.bulkPrice.toFixed(2)} for {item.amazon.bulkQuantity}-pack
+              {bulkSelected === "bulk" && hasBulk ? (
+                <>
+                  <p className={`font-bold text-base leading-none mb-1 ${amazonCheapest ? "text-[#22c55e]" : "text-[#e2e8f0]"}`}>
+                    ${item.amazon.bulkPrice!.toFixed(2)}
+                    {amazonCheapest && <span className="text-[10px] ml-0.5">✓</span>}
                   </p>
-                  <p className="text-[#94a3b8] text-[10px] leading-snug">
-                    = <span className="text-[#e2e8f0] font-medium">${bulkPerUnit.toFixed(2)}/unit</span>
+                  <p className="text-[#64748b] text-[11px] leading-none mb-0.5">
+                    {item.amazon.bulkQuantity}-pack
                   </p>
-                </div>
-              )}
-              {amazonCheapest && item.amazon.annualSavings !== null && item.amazon.annualSavings > 0 && (
-                <p className="text-[#22c55e] text-[10px] font-medium bg-[#22c55e]/10 rounded px-1.5 py-0.5 inline-block mb-1 mt-0.5">
-                  Save ${item.amazon.annualSavings.toFixed(2)}/yr bulk
-                </p>
+                  {!item.sizeMismatch && bulkPerUnit !== null && (
+                    <p className="text-[#475569] text-[10px] leading-none mb-1">
+                      ${bulkPerUnit.toFixed(2)}/unit
+                    </p>
+                  )}
+                  {item.amazon.productName !== item.name && (
+                    <p className="text-[#475569] text-[10px] truncate mb-1" title={item.amazon.productName}>
+                      {item.amazon.productName}
+                    </p>
+                  )}
+                  {item.amazon.annualSavings !== null && item.amazon.annualSavings > 0 && (
+                    <p className="text-[#22c55e] text-[10px] font-medium bg-[#22c55e]/10 rounded px-1.5 py-0.5 inline-block mb-1 mt-0.5">
+                      Save ${item.amazon.annualSavings.toFixed(2)}/yr bulk
+                    </p>
+                  )}
+                </>
+              ) : (
+                <>
+                  <p className={`font-bold text-base leading-none mb-1 ${amazonCheapest ? "text-[#22c55e]" : "text-[#e2e8f0]"}`}>
+                    ${(item.amazon.regularPrice ?? item.amazon.price).toFixed(2)}
+                    {amazonCheapest && <span className="text-[10px] ml-0.5">✓</span>}
+                  </p>
+                  {amazonUnit && (
+                    <p className="text-[#64748b] text-[11px] leading-none mb-0.5">
+                      {amazonUnit.quantity} {amazonUnit.unit}
+                    </p>
+                  )}
+                  {!item.sizeMismatch && amazonPricePerUnit !== null && (
+                    <p className="text-[#475569] text-[10px] leading-none mb-1">
+                      ${amazonPricePerUnit.toFixed(2)}/{amazonUnit!.unit}
+                    </p>
+                  )}
+                  {item.amazon.productName !== item.name && (
+                    <p className="text-[#475569] text-[10px] truncate mb-1" title={item.amazon.productName}>
+                      {item.amazon.productName}
+                    </p>
+                  )}
+                </>
               )}
               <div className="mt-1">
                 <a
-                  href={`https://www.amazon.com/s?k=${encodeURIComponent(item.name)}&i=grocery`}
+                  href={
+                    bulkSelected === "bulk" && item.amazon.bulkAsin
+                      ? `https://www.amazon.com/dp/${item.amazon.bulkAsin}`
+                      : `https://www.amazon.com/s?k=${encodeURIComponent(item.name)}&i=grocery`
+                  }
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-[#22c55e] hover:text-[#16a34a] text-xs transition-colors"
@@ -265,6 +308,7 @@ export default function ResultsPage() {
   const [pricedItems, setPricedItems] = useState<(PricedItem | null)[]>([]);
   const [totals, setTotals] = useState<Totals | null>(null);
   const [storeSelections, setStoreSelections] = useState<Record<number, "amazon" | "walmart">>({});
+  const [bulkSelections, setBulkSelections] = useState<Record<number, "single" | "bulk">>({});
 
   useEffect(() => {
     const controller = new AbortController();
@@ -282,16 +326,16 @@ export default function ResultsPage() {
     }
 
     const items: GroceryItem[] = JSON.parse(raw);
-    const zipCode = sessionStorage.getItem("slashcart_zipcode") ?? undefined;
 
     setGroceryItems(items);
     setPricedItems(new Array(items.length).fill(null));
+    setBulkSelections(Object.fromEntries(items.map((_, i) => [i, "single" as const])));
     setLoading(false);
 
     fetch("/api/search-prices", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ items, zipCode }),
+      body: JSON.stringify({ items }),
       signal: controller.signal,
     })
       .then(async (r) => {
@@ -336,16 +380,6 @@ export default function ResultsPage() {
 
   const allLoaded = totals !== null;
 
-  const totalAnnualSavings = allLoaded
-    ? Math.round(
-        (pricedItems as PricedItem[]).reduce(
-          (sum, item) =>
-            sum + (getWinners(item).amazonCheapest ? (item.amazon.annualSavings ?? 0) : 0),
-          0
-        ) * 100
-      ) / 100
-    : 0;
-
   const excludedPreview =
     excludedItems.slice(0, 3).map((i) => i.name).join(", ") +
     (excludedItems.length > 3 ? ", etc." : "");
@@ -353,22 +387,47 @@ export default function ResultsPage() {
   const round = (n: number) => Math.round(n * 100) / 100;
 
   // Derive selected items by iterating groceryItems so the index always
-  // matches storeSelections keys, regardless of pricedItems slot fill order.
-  const amazonSelectedItems: PricedItem[] = [];
+  // matches storeSelections/bulkSelections keys.
+  const amazonSelectedEntries: { index: number; item: PricedItem }[] = [];
   const walmartSelectedItems: PricedItem[] = [];
   if (allLoaded) {
     groceryItems.forEach((_, i) => {
       const item = pricedItems[i];
       if (!item) return;
       const store = storeSelections[i] ?? defaultStore(item);
-      if (store === "amazon") amazonSelectedItems.push(item);
+      if (store === "amazon") amazonSelectedEntries.push({ index: i, item });
       else walmartSelectedItems.push(item);
     });
   }
 
-  const amazonSelectedTotal = round(amazonSelectedItems.reduce((s, item) => s + (item.amazon.price ?? 0), 0));
+  const totalAnnualSavings = allLoaded
+    ? Math.round(
+        amazonSelectedEntries.reduce((sum, { index, item }) => {
+          const isBulk = (bulkSelections[index] ?? "single") === "bulk";
+          return sum + (isBulk ? (item.amazon.annualSavings ?? 0) : 0);
+        }, 0) * 100
+      ) / 100
+    : 0;
+
+  const amazonCartAsins = amazonSelectedEntries
+    .map(({ index, item }) => {
+      const isBulk = (bulkSelections[index] ?? "single") === "bulk";
+      const asin = isBulk && item.amazon.bulkAsin ? item.amazon.bulkAsin : item.amazon.asin;
+      return asin;
+    })
+    .filter((asin): asin is string => typeof asin === "string" && asin.length > 0);
+
+  const amazonSelectedTotal = round(
+    amazonSelectedEntries.reduce((s, { index, item }) => {
+      const isBulk = (bulkSelections[index] ?? "single") === "bulk";
+      const price = isBulk && item.amazon.bulkPrice !== null
+        ? item.amazon.bulkPrice
+        : (item.amazon.price ?? 0);
+      return s + price;
+    }, 0)
+  );
   const walmartSelectedTotal = round(walmartSelectedItems.reduce((s, item) => s + (item.walmart.price ?? 0), 0));
-  const amazonCartUrl = amazonSelectedItems.length > 0 ? buildAmazonCartUrl(amazonSelectedItems) : null;
+  const amazonCartUrl = buildAmazonCartUrl(amazonCartAsins);
 
   return (
     <main className="flex flex-col flex-1 px-4 py-10 max-w-2xl mx-auto w-full">
@@ -415,6 +474,8 @@ export default function ResultsPage() {
                 item={priced}
                 selected={storeSelections[i] ?? defaultStore(priced)}
                 onSelect={(store) => setStoreSelections((prev) => ({ ...prev, [i]: store }))}
+                bulkSelected={bulkSelections[i] ?? "single"}
+                onBulkToggle={(v) => setBulkSelections((prev) => ({ ...prev, [i]: v }))}
               />
             : <SkeletonCard key={i} {...groceryItem} />;
         })}
@@ -440,7 +501,7 @@ export default function ResultsPage() {
             {amazonCartUrl && (
               <div>
                 <p className="text-[#94a3b8] text-xs mb-2">
-                  {amazonSelectedItems.length} item{amazonSelectedItems.length !== 1 ? "s" : ""} on Amazon
+                  {amazonSelectedEntries.length} item{amazonSelectedEntries.length !== 1 ? "s" : ""} on Amazon
                   {" · "}<span className="text-[#e2e8f0] font-medium">${amazonSelectedTotal.toFixed(2)}</span>
                 </p>
                 <a
