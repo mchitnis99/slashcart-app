@@ -6,17 +6,23 @@ export type WalmartResult = {
 
 const STOP_WORDS = new Set(["a", "an", "the", "and", "or", "for", "with", "of", "in", "to", "is", "at", "by"]);
 
+const SPECIALTY_WORDS = ["organic", "gluten-free", "gluten free", "blend", "alternative", "vegan", "keto", "paleo", "non-gmo", "plant-based"];
+
 function isRelevant(productName: string, query: string): boolean {
   const keywords = query
     .toLowerCase()
     .split(/\s+/)
     .filter((w) => w.length > 2 && !STOP_WORDS.has(w));
   if (keywords.length === 0) return true;
-  // Whole-word matching — "flour" in "Pizza Flour" is not enough if "purpose" is also a keyword
   const nameWords = new Set(productName.toLowerCase().split(/\W+/).filter(Boolean));
   const matchCount = keywords.filter((kw) => nameWords.has(kw)).length;
-  // Require at least half the keywords to match (minimum 1), whole-word only
   return matchCount >= Math.max(1, Math.ceil(keywords.length / 2));
+}
+
+function isSpecialty(productName: string, query: string): boolean {
+  const queryLower = query.toLowerCase();
+  const nameLower = productName.toLowerCase();
+  return SPECIALTY_WORDS.some((w) => nameLower.includes(w) && !queryLower.includes(w));
 }
 
 function parsePrice(raw: unknown): number | null {
@@ -61,15 +67,29 @@ export async function scrapeWalmartPrice(itemName: string): Promise<WalmartResul
 
   console.log(`[walmart] Got ${results.length} results for "${itemName}"`);
 
+  // Collect all relevant, priced candidates
+  const standard: { name: string; price: number }[] = [];
+  const specialty: { name: string; price: number }[] = [];
+
   for (const result of results) {
     const price = parsePrice(result.price ?? result.sale_price ?? result.primary_price);
     const name = String(result.name ?? result.title ?? itemName);
     const relevant = isRelevant(name, itemName);
-    console.log(`[walmart] [${relevant ? "PASS" : "FAIL"}] "${name}" @ ${price !== null ? `$${price}` : "no price"} (query: "${itemName}")`);
+    const special = relevant && price !== null ? isSpecialty(name, itemName) : false;
+    console.log(`[walmart] [${relevant ? (special ? "SPECIALTY" : "PASS") : "FAIL"}] "${name}" @ ${price !== null ? `$${price}` : "no price"} (query: "${itemName}")`);
     if (price === null || !relevant) continue;
-    return { name, price, inStock: true };
+    if (special) specialty.push({ name, price });
+    else standard.push({ name, price });
   }
 
-  console.error(`[walmart] No relevant priced results for "${itemName}". Response:`, JSON.stringify(data).slice(0, 500));
-  return null;
+  // Pick cheapest standard result; fall back to cheapest specialty if no standard results
+  const pool = standard.length > 0 ? standard : specialty;
+  if (pool.length === 0) {
+    console.error(`[walmart] No relevant priced results for "${itemName}". Response:`, JSON.stringify(data).slice(0, 500));
+    return null;
+  }
+
+  const best = pool.reduce((a, b) => (b.price < a.price ? b : a));
+  console.log(`[walmart] Selected: "${best.name}" @ $${best.price} (from ${standard.length} standard, ${specialty.length} specialty)`);
+  return { name: best.name, price: best.price, inStock: true };
 }
