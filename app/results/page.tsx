@@ -360,6 +360,12 @@ export default function ResultsPage() {
         </div>
       )}
 
+      {pricedItems.some((p) => p === null) && (
+        <p className="text-[#94a3b8] text-sm text-center animate-pulse mb-4">
+          Hang on, finding the best prices…
+        </p>
+      )}
+
       <div className="space-y-3 mb-8">
         {groceryItems.map((groceryItem, i) => {
           const priced = pricedItems[i];

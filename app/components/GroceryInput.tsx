@@ -1,25 +1,18 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 
 export default function GroceryInput() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [email, setEmail] = useState("");
-  const [zipCode, setZipCode] = useState("");
   const [text, setText] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const saved = sessionStorage.getItem("slashcart_zipcode");
-    if (saved) setZipCode(saved);
-  }, []);
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -88,15 +81,6 @@ export default function GroceryInput() {
       const { items, excluded_items } = await res.json();
       sessionStorage.setItem("slashcart_items", JSON.stringify(items));
       sessionStorage.setItem("slashcart_excluded", JSON.stringify(excluded_items ?? []));
-      sessionStorage.setItem("slashcart_zipcode", zipCode.trim());
-
-      if (email.trim()) {
-        fetch("/api/waitlist", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: email.trim() }),
-        }).catch(() => {});
-      }
 
       router.push("/results");
     } catch (err) {
@@ -108,37 +92,6 @@ export default function GroceryInput() {
 
   return (
     <form onSubmit={handleSubmit} className="w-full max-w-2xl mx-auto space-y-4">
-      <div>
-        <label className="block text-[#94a3b8] text-xs font-medium uppercase tracking-wider mb-1.5">
-          Stay updated on deals and new stores
-        </label>
-        <input
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="you@example.com"
-          className="w-full rounded-xl border border-[#1e3050] bg-[#142036] text-[#e2e8f0] placeholder-[#475569] px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#22c55e] transition"
-        />
-        <p className="text-[#475569] text-xs mt-1.5">
-          No spam. Unsubscribe anytime.
-        </p>
-      </div>
-
-      <div>
-        <label className="block text-[#94a3b8] text-xs font-medium uppercase tracking-wider mb-1.5">
-          Your zip code
-        </label>
-        <input
-          type="text"
-          inputMode="numeric"
-          maxLength={5}
-          value={zipCode}
-          onChange={(e) => setZipCode(e.target.value.replace(/\D/g, "").slice(0, 5))}
-          placeholder="e.g. 10001"
-          className="w-full rounded-xl border border-[#1e3050] bg-[#142036] text-[#e2e8f0] placeholder-[#475569] px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#22c55e] transition"
-        />
-      </div>
-
       <div className="relative">
         <textarea
           value={text}
