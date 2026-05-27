@@ -89,6 +89,20 @@ function PricedItemCard({
       ? item.amazon.bulkPrice / item.amazon.bulkQuantity
       : null;
 
+  const amazonBuyHref =
+    bulkSelected === "bulk" && item.amazon.bulkAsin
+      ? `https://www.amazon.com/dp/${item.amazon.bulkAsin}?tag=slashcart-20`
+      : item.amazon.asin
+      ? `https://www.amazon.com/dp/${item.amazon.asin}?tag=slashcart-20`
+      : `https://www.amazon.com/s?k=${encodeURIComponent(item.name)}&i=grocery`;
+  const walmartBuyHref = `https://www.walmart.com/search?q=${encodeURIComponent(item.name)}`;
+
+  console.log(
+    `[buy-links] "${item.name}" | asin=${item.amazon.asin} bulkAsin=${item.amazon.bulkAsin} bulkSelected=${bulkSelected}\n` +
+    `  Amazon Buy → ${amazonBuyHref}\n` +
+    `  Walmart Buy → ${walmartBuyHref}`
+  );
+
   return (
     <div className="rounded-xl border border-[#1e3050] bg-[#0d1830] px-4 py-4">
       <div className="mb-3">
@@ -176,11 +190,7 @@ function PricedItemCard({
               )}
               <div className="mt-1">
                 <a
-                  href={
-                    bulkSelected === "bulk" && item.amazon.bulkAsin
-                      ? `https://www.amazon.com/dp/${item.amazon.bulkAsin}`
-                      : `https://www.amazon.com/s?k=${encodeURIComponent(item.name)}&i=grocery`
-                  }
+                  href={amazonBuyHref}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-[#22c55e] hover:text-[#16a34a] text-xs transition-colors"

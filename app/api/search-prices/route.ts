@@ -144,7 +144,7 @@ export async function POST(request: Request) {
       tryWalmartScrape(item.name),
     ]);
 
-    if (amazon) console.log(`SCRAPED amazon: ${item.name} → $${amazon.price}`);
+    if (amazon) console.log(`SCRAPED amazon: ${item.name} → $${amazon.price} (asin: ${amazon.asin})`);
     else console.log(`UNAVAILABLE amazon: ${item.name}`);
     if (walmart) console.log(`SCRAPED walmart: ${item.name} → $${walmart.price}`);
     else console.log(`UNAVAILABLE walmart: ${item.name}`);

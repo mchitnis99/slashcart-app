@@ -4,6 +4,21 @@ export type WalmartResult = {
   inStock: boolean;
 };
 
+const STOP_WORDS = new Set(["a", "an", "the", "and", "or", "for", "with", "of", "in", "to", "is", "at", "by"]);
+
+function isRelevant(productName: string, query: string): boolean {
+  const keywords = query
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((w) => w.length > 2 && !STOP_WORDS.has(w));
+  if (keywords.length === 0) return true;
+  // Whole-word matching — "flour" in "Pizza Flour" is not enough if "purpose" is also a keyword
+  const nameWords = new Set(productName.toLowerCase().split(/\W+/).filter(Boolean));
+  const matchCount = keywords.filter((kw) => nameWords.has(kw)).length;
+  // Require at least half the keywords to match (minimum 1), whole-word only
+  return matchCount >= Math.max(1, Math.ceil(keywords.length / 2));
+}
+
 function parsePrice(raw: unknown): number | null {
   if (typeof raw === "number") return raw > 0 && raw < 10000 ? raw : null;
   if (typeof raw === "string") {
@@ -48,13 +63,13 @@ export async function scrapeWalmartPrice(itemName: string): Promise<WalmartResul
 
   for (const result of results) {
     const price = parsePrice(result.price ?? result.sale_price ?? result.primary_price);
-    if (price !== null) {
-      const name = (result.name as string) ?? (result.title as string) ?? itemName;
-      console.log(`[walmart] First priced result for "${itemName}": ${name} @ $${price}`);
-      return { name, price, inStock: true };
-    }
+    const name = String(result.name ?? result.title ?? itemName);
+    const relevant = isRelevant(name, itemName);
+    console.log(`[walmart] [${relevant ? "PASS" : "FAIL"}] "${name}" @ ${price !== null ? `$${price}` : "no price"} (query: "${itemName}")`);
+    if (price === null || !relevant) continue;
+    return { name, price, inStock: true };
   }
 
-  console.error(`[walmart] No priced results for "${itemName}". Response:`, JSON.stringify(data).slice(0, 500));
+  console.error(`[walmart] No relevant priced results for "${itemName}". Response:`, JSON.stringify(data).slice(0, 500));
   return null;
 }
