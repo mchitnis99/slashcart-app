@@ -25,7 +25,7 @@ export const metadata: Metadata = {
       "Compare grocery prices across Amazon and Walmart instantly. Upload your list or receipt and find the best deals.",
     url: "https://app.slashcart.app",
     siteName: "SlashCart",
-    images: [{ url: "/og-image.svg", width: 320, height: 100 }],
+    images: [{ url: "/og-image.png", width: 1200, height: 630 }],
     type: "website",
   },
   twitter: {
@@ -33,7 +33,7 @@ export const metadata: Metadata = {
     title: "SlashCart — Slash Your Grocery Bill",
     description:
       "Compare grocery prices across Amazon and Walmart instantly.",
-    images: ["/og-image.svg"],
+    images: ["/og-image.png"],
   },
 };
 
