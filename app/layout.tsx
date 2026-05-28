@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://slashcart.app"),
+  metadataBase: new URL("https://app.slashcart.app"),
   title: "SlashCart",
   description: "Compare grocery prices across Amazon and Walmart",
   icons: {
@@ -23,9 +23,9 @@ export const metadata: Metadata = {
     title: "SlashCart — Slash Your Grocery Bill",
     description:
       "Compare grocery prices across Amazon and Walmart instantly. Upload your list or receipt and find the best deals.",
-    url: "https://slashcart.app",
+    url: "https://app.slashcart.app",
     siteName: "SlashCart",
-    images: [{ url: "/og-image.png", width: 1200, height: 630 }],
+    images: [{ url: "/og-image.svg", width: 320, height: 100 }],
     type: "website",
   },
   twitter: {
@@ -33,7 +33,7 @@ export const metadata: Metadata = {
     title: "SlashCart — Slash Your Grocery Bill",
     description:
       "Compare grocery prices across Amazon and Walmart instantly.",
-    images: ["/og-image.png"],
+    images: ["/og-image.svg"],
   },
 };
 
