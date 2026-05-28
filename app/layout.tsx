@@ -13,10 +13,27 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://slashcart.app"),
   title: "SlashCart",
   description: "Compare grocery prices across Amazon and Walmart",
   icons: {
     icon: "/slashcart-logo.svg",
+  },
+  openGraph: {
+    title: "SlashCart — Slash Your Grocery Bill",
+    description:
+      "Compare grocery prices across Amazon and Walmart instantly. Upload your list or receipt and find the best deals.",
+    url: "https://slashcart.app",
+    siteName: "SlashCart",
+    images: [{ url: "/og-image.png", width: 1200, height: 630 }],
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "SlashCart — Slash Your Grocery Bill",
+    description:
+      "Compare grocery prices across Amazon and Walmart instantly.",
+    images: ["/og-image.png"],
   },
 };
 
