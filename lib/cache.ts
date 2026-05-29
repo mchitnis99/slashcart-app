@@ -20,6 +20,7 @@ type CachedPriceData = {
   walmart: {
     price: number | null;
     productName: string;
+    url?: string | null;
   } | null;
 };
 

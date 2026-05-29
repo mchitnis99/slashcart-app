@@ -2,6 +2,7 @@ export type WalmartResult = {
   name: string;
   price: number;
   inStock: boolean;
+  url: string | null;
 };
 
 const STOP_WORDS = new Set(["a", "an", "the", "and", "or", "for", "with", "of", "in", "to", "is", "at", "by"]);
@@ -68,18 +69,22 @@ export async function scrapeWalmartPrice(itemName: string): Promise<WalmartResul
   console.log(`[walmart] Got ${results.length} results for "${itemName}"`);
 
   // Collect all relevant, priced candidates
-  const standard: { name: string; price: number }[] = [];
-  const specialty: { name: string; price: number }[] = [];
+  type Candidate = { name: string; price: number; url: string | null };
+  const standard: Candidate[] = [];
+  const specialty: Candidate[] = [];
 
   for (const result of results) {
     const price = parsePrice(result.price ?? result.sale_price ?? result.primary_price);
     const name = String(result.name ?? result.title ?? itemName);
+    const url = (typeof result.url === "string" && result.url) ? result.url
+              : (typeof result.link === "string" && result.link) ? result.link
+              : null;
     const relevant = isRelevant(name, itemName);
     const special = relevant && price !== null ? isSpecialty(name, itemName) : false;
-    console.log(`[walmart] [${relevant ? (special ? "SPECIALTY" : "PASS") : "FAIL"}] "${name}" @ ${price !== null ? `$${price}` : "no price"} (query: "${itemName}")`);
+    console.log(`[walmart] [${relevant ? (special ? "SPECIALTY" : "PASS") : "FAIL"}] "${name}" @ ${price !== null ? `$${price}` : "no price"} url=${url ?? "none"} (query: "${itemName}")`);
     if (price === null || !relevant) continue;
-    if (special) specialty.push({ name, price });
-    else standard.push({ name, price });
+    if (special) specialty.push({ name, price, url });
+    else standard.push({ name, price, url });
   }
 
   // Pick cheapest standard result; fall back to cheapest specialty if no standard results
@@ -90,6 +95,6 @@ export async function scrapeWalmartPrice(itemName: string): Promise<WalmartResul
   }
 
   const best = pool.reduce((a, b) => (b.price < a.price ? b : a));
-  console.log(`[walmart] Selected: "${best.name}" @ $${best.price} (from ${standard.length} standard, ${specialty.length} specialty)`);
-  return { name: best.name, price: best.price, inStock: true };
+  console.log(`[walmart] Selected: "${best.name}" @ $${best.price} url=${best.url ?? "none"} (from ${standard.length} standard, ${specialty.length} specialty)`);
+  return { name: best.name, price: best.price, inStock: true, url: best.url };
 }

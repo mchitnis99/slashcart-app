@@ -13,6 +13,7 @@ type GroceryItem = {
 type StoreResult = {
   price: number | null;
   productName: string;
+  url?: string | null;
 };
 
 // Raw scraped fields only — matches what's stored in the Supabase cache.
@@ -85,7 +86,7 @@ async function tryWalmartScrape(itemName: string): Promise<StoreResult | null> {
     const { scrapeWalmartPrice } = await import("@/lib/scrapers/walmart");
     const result = await scrapeWalmartPrice(itemName);
     if (!result) return null;
-    return { price: result.price, productName: result.name };
+    return { price: result.price, productName: result.name, url: result.url };
   } catch (err) {
     console.error(`[search-prices] Walmart error:`, err);
     return null;

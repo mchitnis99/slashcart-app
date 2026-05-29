@@ -5,7 +5,7 @@ import Link from "next/link";
 import { parseSize, toComparableSize } from "@/lib/utils/parseSize";
 
 type GroceryItem = { name: string; quantity: number; unit: string };
-type StoreResult = { price: number | null; productName: string };
+type StoreResult = { price: number | null; productName: string; url?: string | null };
 type AmazonStoreResult = StoreResult & {
   asin: string | null;
   regularPrice: number | null;
@@ -95,7 +95,8 @@ function PricedItemCard({
       : item.amazon.asin
       ? `https://www.amazon.com/dp/${item.amazon.asin}?tag=slashcart-20`
       : `https://www.amazon.com/s?k=${encodeURIComponent(item.name)}&i=grocery`;
-  const walmartBuyHref = `https://www.walmart.com/search?q=${encodeURIComponent(item.name)}`;
+  const walmartBuyHref = item.walmart.url
+    ?? `https://www.walmart.com/search?q=${encodeURIComponent(item.walmart.productName || item.name)}`;
 
   console.log(
     `[buy-links] "${item.name}" | asin=${item.amazon.asin} bulkAsin=${item.amazon.bulkAsin} bulkSelected=${bulkSelected}\n` +
@@ -238,7 +239,7 @@ function PricedItemCard({
                 </p>
               )}
               <a
-                href={`https://www.walmart.com/search?q=${encodeURIComponent(item.name)}`}
+                href={walmartBuyHref}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-[#22c55e] hover:text-[#16a34a] text-xs transition-colors"
@@ -250,7 +251,7 @@ function PricedItemCard({
             <>
               <p className="text-[#475569] text-xs mb-1">Unavailable</p>
               <a
-                href={`https://www.walmart.com/search?q=${encodeURIComponent(item.name)}`}
+                href={walmartBuyHref}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-[#475569] hover:text-[#64748b] text-xs transition-colors"
