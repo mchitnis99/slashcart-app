@@ -33,20 +33,31 @@ function toStringOrNull(val: unknown): string | null {
   return null;
 }
 
-function searchKeywords(itemName: string): string[] {
-  return itemName.toLowerCase().split(/\s+/).filter((w) => w.length >= 3);
+const STOP_WORDS = new Set([
+  "a", "an", "the", "and", "or", "for", "with", "of", "in", "to", "is", "at", "by",
+]);
+
+const SPECIALTY_WORDS = [
+  "whitening", "2-in-1", "organic", "premium", "professional",
+  "advanced", "extra strength", "sensitive", "charcoal", "natural",
+  "plus", "pro", "ultra", "clinical", "maximum", "complete",
+];
+
+function isRelevant(productName: string, query: string): boolean {
+  const keywords = query
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((w) => w.length > 2 && !STOP_WORDS.has(w));
+  if (keywords.length === 0) return true;
+  const nameWords = new Set(productName.toLowerCase().split(/\W+/).filter(Boolean));
+  const matchCount = keywords.filter((kw) => nameWords.has(kw)).length;
+  return matchCount >= Math.max(1, Math.ceil(keywords.length / 2));
 }
 
-function relevanceScore(title: string, keywords: string[]): number {
-  const lower = title.toLowerCase();
-  let score = 0;
-  keywords.forEach((kw, i) => {
-    if (lower.includes(kw)) {
-      // First keyword is treated as the brand — weight it 3x
-      score += i === 0 ? 3 : 1;
-    }
-  });
-  return score;
+function isSpecialty(productName: string, query: string): boolean {
+  const queryLower = query.toLowerCase();
+  const nameLower = productName.toLowerCase();
+  return SPECIALTY_WORDS.some((w) => nameLower.includes(w) && !queryLower.includes(w));
 }
 
 export async function scrapeAmazonPrice(itemName: string): Promise<AmazonResult | null> {
@@ -81,48 +92,56 @@ export async function scrapeAmazonPrice(itemName: string): Promise<AmazonResult 
   const results = (data.results ?? data.organic_results ?? []) as Record<string, unknown>[];
 
   console.log(`[amazon] Got ${results.length} results for "${itemName}"`);
-  console.log(`[amazon] First 3 results for "${itemName}":`, JSON.stringify(results.slice(0, 3), null, 2));
 
-  const keywords = searchKeywords(itemName);
-
-  // Pick the best-matching non-bulk priced result by keyword relevance.
-  // Among equal scores, earlier results (Amazon's own ranking) win.
-  let regularResult: Record<string, unknown> | null = null;
-  let regularPrice: number | null = null;
-  let regularAsin: string | null = null;
-  let bestScore = -1;
+  type Candidate = { result: Record<string, unknown>; price: number; asin: string | null };
+  const standard: Candidate[] = [];
+  const specialty: Candidate[] = [];
 
   for (const result of results) {
     const price = parsePrice(result.price);
-    if (price === null) continue;
     const title = String(result.name ?? result.title ?? "");
+
+    // Bulk listings are handled in a separate pass below
     if (BULK_RE.test(title)) continue;
-    const score = relevanceScore(title, keywords);
-    if (score > bestScore) {
-      bestScore = score;
-      regularResult = result;
-      regularPrice = price;
-      regularAsin = toStringOrNull(result.asin ?? result.product_id);
-    }
+
+    const relevant = isRelevant(title, itemName);
+    const special = relevant && price !== null ? isSpecialty(title, itemName) : false;
+    const label = !relevant ? "FAIL" : special ? "SPECIALTY" : "PASS";
+    console.log(`[amazon] [${label}] "${title}" @ ${price !== null ? `$${price}` : "no price"} (query: "${itemName}")`);
+
+    if (price === null || !relevant) continue;
+    const asin = toStringOrNull(result.asin ?? result.product_id);
+    if (special) specialty.push({ result, price, asin });
+    else standard.push({ result, price, asin });
   }
 
-  // Fall back to first priced result if all results are bulk-labelled
-  if (regularPrice === null) {
+  // Cheapest standard result wins; fall back to cheapest specialty
+  const pool = standard.length > 0 ? standard : specialty;
+  let regularCandidate: Candidate | null = pool.length > 0
+    ? pool.reduce((a, b) => (b.price < a.price ? b : a))
+    : null;
+
+  // Last resort: first priced result regardless of relevance or bulk label
+  if (regularCandidate === null) {
     for (const result of results) {
       const price = parsePrice(result.price);
       if (price !== null) {
-        regularResult = result;
-        regularPrice = price;
-        regularAsin = toStringOrNull(result.asin ?? result.product_id);
+        regularCandidate = {
+          result,
+          price,
+          asin: toStringOrNull(result.asin ?? result.product_id),
+        };
         break;
       }
     }
   }
 
-  if (regularPrice === null || regularResult === null) {
+  if (regularCandidate === null) {
     console.error(`[amazon] No priced results for "${itemName}". Response:`, JSON.stringify(data).slice(0, 500));
     return null;
   }
+
+  const { result: regularResult, price: regularPrice, asin: regularAsin } = regularCandidate;
 
   // Find cheapest bulk variant with a lower per-unit cost than regularPrice
   let bulkPrice: number | null = null;
@@ -148,10 +167,11 @@ export async function scrapeAmazonPrice(itemName: string): Promise<AmazonResult 
 
   const name = String(regularResult.name ?? itemName);
   console.log(
-    `[amazon] Result for "${itemName}": ${name} @ $${regularPrice}` +
+    `[amazon] Selected "${itemName}": ${name} @ $${regularPrice}` +
     (bulkPrice !== null && bulkQuantity !== null
       ? `, bulk: $${bulkPrice} (${bulkQuantity} units, $${(bulkPrice / bulkQuantity).toFixed(2)}/unit)`
-      : "")
+      : "") +
+    ` (from ${standard.length} standard, ${specialty.length} specialty)`
   );
 
   return {
