@@ -104,9 +104,9 @@ function PricedItemCard({
   );
 
   return (
-    <div className="rounded-xl border border-[#1e3050] bg-[#0d1830] px-3 py-3 sm:px-4 sm:py-4">
-      <div className="mb-3">
-        <p className="font-medium text-[#e2e8f0] capitalize">{item.name}</p>
+    <div className="rounded-xl border border-[#1e3050] bg-[#0d1830] px-3 py-3 sm:px-4 sm:py-4 overflow-hidden">
+      <div className="mb-3 min-w-0">
+        <p className="font-medium text-[#e2e8f0] capitalize truncate">{item.name}</p>
         <p className="text-[#475569] text-xs">{item.quantity} {item.unit}</p>
         {item.sizeMismatch && (
           <p className="text-[#f59e0b] text-[10px] mt-0.5">
@@ -116,11 +116,11 @@ function PricedItemCard({
       </div>
 
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3">
-        <div className={`rounded-lg p-2.5 border ${amazonCheapest ? "border-[#22c55e]/40 bg-[#22c55e]/5" : "border-[#1e3050] bg-[#142036]"}`}>
-          <div className="flex items-center justify-between mb-1">
-            <p className="text-[#64748b] text-xs font-medium">Amazon</p>
+        <div className={`rounded-lg p-2.5 border overflow-hidden ${amazonCheapest ? "border-[#22c55e]/40 bg-[#22c55e]/5" : "border-[#1e3050] bg-[#142036]"}`}>
+          <div className="flex items-center justify-between gap-1 mb-1 min-w-0">
+            <p className="text-[#64748b] text-xs font-medium shrink-0">Amazon</p>
             {hasBulk && (
-              <div className="flex gap-0.5">
+              <div className="flex gap-0.5 shrink-0">
                 {(["single", "bulk"] as const).map((opt) => (
                   <button
                     key={opt}
@@ -214,7 +214,7 @@ function PricedItemCard({
           )}
         </div>
 
-        <div className={`rounded-lg p-2.5 border ${walmartCheapest ? "border-[#22c55e]/40 bg-[#22c55e]/5" : "border-[#1e3050] bg-[#142036]"}`}>
+        <div className={`rounded-lg p-2.5 border overflow-hidden ${walmartCheapest ? "border-[#22c55e]/40 bg-[#22c55e]/5" : "border-[#1e3050] bg-[#142036]"}`}>
           <p className="text-[#64748b] text-xs font-medium mb-1">Walmart</p>
           {item.walmart.price !== null ? (
             <>
@@ -262,7 +262,7 @@ function PricedItemCard({
         </div>
       </div>
 
-      <div className="mt-3 flex gap-2">
+      <div className="mt-3 flex gap-2 w-full overflow-hidden">
         {(["amazon", "walmart"] as const).map((store) => {
           const available = store === "amazon" ? item.amazon.price !== null : item.walmart.price !== null;
           const active = selected === store;
