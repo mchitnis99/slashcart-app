@@ -29,7 +29,7 @@ function SlashCartLogo() {
 
 export default function HomePage() {
   return (
-    <main className="flex flex-col flex-1 px-4 py-12 sm:py-20">
+    <main className="flex flex-col flex-1 w-full overflow-x-hidden px-4 py-12 sm:py-20">
       <div className="text-center mb-7 sm:mb-10">
         <div className="mb-6 flex justify-center">
           <SlashCartLogo />

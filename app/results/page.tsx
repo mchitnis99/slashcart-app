@@ -440,7 +440,7 @@ export default function ResultsPage() {
   const amazonCartUrl = buildAmazonCartUrl(amazonCartAsins);
 
   return (
-    <main className="flex flex-col flex-1 px-3 py-6 sm:px-4 sm:py-10 max-w-2xl mx-auto w-full">
+    <main className="flex flex-col flex-1 w-full overflow-x-hidden px-3 py-6 sm:px-4 sm:py-10 max-w-2xl mx-auto">
       <div className="mb-6">
         <Link href="/" className="text-[#22c55e] text-sm hover:underline mb-3 inline-block">
           ← New search
