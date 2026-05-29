@@ -30,7 +30,7 @@ function SlashCartLogo() {
 export default function HomePage() {
   return (
     <main className="flex flex-col flex-1 px-4 py-12 sm:py-20">
-      <div className="text-center mb-10">
+      <div className="text-center mb-7 sm:mb-10">
         <div className="mb-6 flex justify-center">
           <SlashCartLogo />
         </div>
@@ -47,7 +47,7 @@ export default function HomePage() {
 
       <GroceryInput />
 
-      <div className="mt-16 grid grid-cols-3 gap-6 max-w-xl mx-auto text-center">
+      <div className="mt-10 sm:mt-16 grid grid-cols-3 gap-3 sm:gap-6 max-w-xl mx-auto text-center px-2 sm:px-0">
         {[
           { icon: "🧾", label: "Paste or snap a list" },
           { icon: "🛒", label: "Amazon & Walmart prices" },

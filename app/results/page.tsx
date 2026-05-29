@@ -104,7 +104,7 @@ function PricedItemCard({
   );
 
   return (
-    <div className="rounded-xl border border-[#1e3050] bg-[#0d1830] px-4 py-4">
+    <div className="rounded-xl border border-[#1e3050] bg-[#0d1830] px-3 py-3 sm:px-4 sm:py-4">
       <div className="mb-3">
         <p className="font-medium text-[#e2e8f0] capitalize">{item.name}</p>
         <p className="text-[#475569] text-xs">{item.quantity} {item.unit}</p>
@@ -115,7 +115,7 @@ function PricedItemCard({
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3">
         <div className={`rounded-lg p-2.5 border ${amazonCheapest ? "border-[#22c55e]/40 bg-[#22c55e]/5" : "border-[#1e3050] bg-[#142036]"}`}>
           <div className="flex items-center justify-between mb-1">
             <p className="text-[#64748b] text-xs font-medium">Amazon</p>
@@ -272,7 +272,7 @@ function PricedItemCard({
               type="button"
               onClick={() => onSelect(store)}
               disabled={!available}
-              className={`flex-1 text-xs py-1.5 rounded-lg border transition capitalize ${
+              className={`flex-1 text-xs py-2 sm:py-1.5 rounded-lg border transition capitalize ${
                 !available
                   ? "border-[#1e3050] bg-[#0d1830] text-[#2d3f5c] cursor-not-allowed"
                   : active
@@ -291,13 +291,13 @@ function PricedItemCard({
 
 function SkeletonCard({ name, quantity, unit }: GroceryItem) {
   return (
-    <div className="rounded-xl border border-[#1e3050] bg-[#0d1830] px-4 py-4 animate-pulse">
+    <div className="rounded-xl border border-[#1e3050] bg-[#0d1830] px-3 py-3 sm:px-4 sm:py-4 animate-pulse">
       <div className="mb-3">
         <p className="font-medium text-[#e2e8f0] capitalize">{name}</p>
         <p className="text-[#475569] text-xs">{quantity} {unit}</p>
         <p className="text-[#475569] text-xs mt-0.5">Searching Amazon & Walmart…</p>
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3">
         {["Amazon", "Walmart"].map((store) => (
           <div key={store} className="rounded-lg p-2.5 border border-[#1e3050] bg-[#142036]">
             <p className="text-[#64748b] text-xs font-medium mb-2">{store}</p>
@@ -440,12 +440,12 @@ export default function ResultsPage() {
   const amazonCartUrl = buildAmazonCartUrl(amazonCartAsins);
 
   return (
-    <main className="flex flex-col flex-1 px-4 py-10 max-w-2xl mx-auto w-full">
+    <main className="flex flex-col flex-1 px-3 py-6 sm:px-4 sm:py-10 max-w-2xl mx-auto w-full">
       <div className="mb-6">
         <Link href="/" className="text-[#22c55e] text-sm hover:underline mb-3 inline-block">
           ← New search
         </Link>
-        <h1 className="text-2xl sm:text-3xl font-bold text-[#e2e8f0]">Price Comparison</h1>
+        <h1 className="text-xl sm:text-3xl font-bold text-[#e2e8f0]">Price Comparison</h1>
         <p className="text-[#94a3b8] text-sm mt-1">
           {groceryItems.length} pantry staple{groceryItems.length !== 1 ? "s" : ""} · Amazon vs Walmart
         </p>
@@ -458,7 +458,7 @@ export default function ResultsPage() {
       )}
 
       {allLoaded && totalAnnualSavings > 0 && (
-        <div className="mb-6 rounded-xl bg-[#22c55e]/10 border border-[#22c55e]/30 px-5 py-4">
+        <div className="mb-6 rounded-xl bg-[#22c55e]/10 border border-[#22c55e]/30 px-4 py-4">
           <p className="text-[#e2e8f0] font-semibold text-sm sm:text-base">
             Buy in bulk and save{" "}
             <span className="text-[#22c55e] font-bold">${totalAnnualSavings.toFixed(2)}/year</span>
@@ -494,14 +494,14 @@ export default function ResultsPage() {
       {allLoaded && (
         <>
           {totalAnnualSavings > 0 && (
-            <div className="rounded-xl bg-[#22c55e]/10 border border-[#22c55e]/30 px-4 py-4 flex items-center justify-between mb-4">
+            <div className="rounded-xl bg-[#22c55e]/10 border border-[#22c55e]/30 px-4 py-4 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between mb-4">
               <div>
                 <span className="text-[#22c55e] font-semibold text-sm block">
                   Total annual savings buying in bulk
                 </span>
                 <span className="text-[#94a3b8] text-xs">vs. buying single units monthly</span>
               </div>
-              <span className="text-[#22c55e] font-bold text-2xl">
+              <span className="text-[#22c55e] font-bold text-xl sm:text-2xl">
                 ${totalAnnualSavings.toFixed(2)}
               </span>
             </div>
