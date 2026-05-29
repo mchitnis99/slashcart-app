@@ -38,9 +38,12 @@ export default function HomePage() {
           Let&apos;s Slash Your Grocery Bill
         </h1>
         <p className="text-[#22c55e] font-semibold text-lg sm:text-xl mb-3">
-          We&apos;ll find the best prices across Amazon and Walmart — including bulk deals.
+          Most people overpay because they only ever look at shelf prices.
         </p>
-        <p className="text-[#94a3b8] text-base sm:text-lg max-w-md mx-auto">
+        <p className="text-[#94a3b8] text-base sm:text-lg max-w-lg mx-auto mb-3">
+          We unlock the savings hidden in per-unit pricing across Amazon and Walmart — for your entire list in one click.
+        </p>
+        <p className="text-[#64748b] text-sm sm:text-base max-w-md mx-auto">
           It&apos;s easy — just paste your grocery list or upload a receipt!
         </p>
       </div>

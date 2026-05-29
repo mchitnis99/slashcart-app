@@ -80,6 +80,15 @@ function PricedItemCard({
 
   const { amazonCheapest, walmartCheapest } = getWinners(item);
 
+  // Normalized PPU for cross-store savings % (same unit after lb→oz etc. conversion)
+  const amazonNorm = toComparableSize(amazonUnit);
+  const walmartNorm = toComparableSize(walmartUnit);
+  const amazonNormPPU = amazonNorm && item.amazon.price !== null ? item.amazon.price / amazonNorm.quantity : null;
+  const walmartNormPPU = walmartNorm && item.walmart.price !== null ? item.walmart.price / walmartNorm.quantity : null;
+  const canCompare = !item.sizeMismatch && amazonNormPPU !== null && walmartNormPPU !== null && amazonNorm!.unit === walmartNorm!.unit;
+  const amazonSavingsPct = canCompare && amazonCheapest ? Math.round((1 - amazonNormPPU! / walmartNormPPU!) * 100) : null;
+  const walmartSavingsPct = canCompare && walmartCheapest ? Math.round((1 - walmartNormPPU! / amazonNormPPU!) * 100) : null;
+
   const hasBulk =
     item.amazon.bulkPrice !== null &&
     item.amazon.bulkQuantity !== null;
@@ -117,9 +126,17 @@ function PricedItemCard({
       </div>
 
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3">
+        {/* Amazon card */}
         <div className={`rounded-lg p-2.5 border overflow-hidden ${amazonCheapest ? "border-[#22c55e]/40 bg-[#22c55e]/5" : "border-[#1e3050] bg-[#142036]"}`}>
-          <div className="flex items-center justify-between gap-1 mb-1 min-w-0">
-            <p className="text-[#64748b] text-xs font-medium shrink-0">Amazon</p>
+          <div className="flex items-center justify-between gap-1 mb-1.5 min-w-0">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <p className="text-[#64748b] text-xs font-medium shrink-0">Amazon</p>
+              {amazonCheapest && (
+                <span className="text-[9px] font-semibold text-[#22c55e] bg-[#22c55e]/10 border border-[#22c55e]/30 rounded px-1 py-0.5 leading-none shrink-0">
+                  Best value
+                </span>
+              )}
+            </div>
             {hasBulk && (
               <div className="flex gap-0.5 shrink-0">
                 {(["single", "bulk"] as const).map((opt) => (
@@ -143,16 +160,19 @@ function PricedItemCard({
             <>
               {bulkSelected === "bulk" && hasBulk ? (
                 <>
-                  <p className={`font-bold text-base leading-none mb-1 ${amazonCheapest ? "text-[#22c55e]" : "text-[#e2e8f0]"}`}>
-                    ${item.amazon.bulkPrice!.toFixed(2)}
-                    {amazonCheapest && <span className="text-[10px] ml-0.5">✓</span>}
-                  </p>
-                  <p className="text-[#64748b] text-[11px] leading-none mb-0.5">
-                    {item.amazon.bulkQuantity}-pack
-                  </p>
-                  {!item.sizeMismatch && bulkPerUnit !== null && (
-                    <p className="text-[#475569] text-[10px] leading-none mb-1">
-                      ${bulkPerUnit.toFixed(2)}/unit
+                  {bulkPerUnit !== null ? (
+                    <>
+                      <p className={`font-bold text-base leading-none mb-0.5 ${amazonCheapest ? "text-[#22c55e]" : "text-[#e2e8f0]"}`}>
+                        ${bulkPerUnit.toFixed(2)}/unit
+                      </p>
+                      <p className="text-[#64748b] text-[11px] leading-none mb-1">
+                        ${item.amazon.bulkPrice!.toFixed(2)} · {item.amazon.bulkQuantity}-pack
+                      </p>
+                    </>
+                  ) : (
+                    <p className={`font-bold text-base leading-none mb-1 ${amazonCheapest ? "text-[#22c55e]" : "text-[#e2e8f0]"}`}>
+                      ${item.amazon.bulkPrice!.toFixed(2)}
+                      <span className="text-[#64748b] font-normal text-[11px] ml-1">{item.amazon.bulkQuantity}-pack</span>
                     </p>
                   )}
                   {item.amazon.productName !== item.name && (
@@ -168,18 +188,19 @@ function PricedItemCard({
                 </>
               ) : (
                 <>
-                  <p className={`font-bold text-base leading-none mb-1 ${amazonCheapest ? "text-[#22c55e]" : "text-[#e2e8f0]"}`}>
-                    ${(item.amazon.regularPrice ?? item.amazon.price).toFixed(2)}
-                    {amazonCheapest && <span className="text-[10px] ml-0.5">✓</span>}
-                  </p>
-                  {amazonUnit && (
-                    <p className="text-[#64748b] text-[11px] leading-none mb-0.5">
-                      {amazonUnit.quantity} {amazonUnit.unit}
-                    </p>
-                  )}
-                  {!item.sizeMismatch && amazonPricePerUnit !== null && (
-                    <p className="text-[#475569] text-[10px] leading-none mb-1">
-                      ${amazonPricePerUnit.toFixed(2)}/{amazonUnit!.unit}
+                  {!item.sizeMismatch && amazonPricePerUnit !== null && amazonUnit ? (
+                    <>
+                      <p className={`font-bold text-base leading-none mb-0.5 ${amazonCheapest ? "text-[#22c55e]" : "text-[#e2e8f0]"}`}>
+                        ${amazonPricePerUnit.toFixed(2)}/{amazonUnit.unit}
+                      </p>
+                      <p className="text-[#64748b] text-[11px] leading-none mb-1">
+                        ${(item.amazon.regularPrice ?? item.amazon.price).toFixed(2)} · {amazonUnit.quantity} {amazonUnit.unit}
+                      </p>
+                    </>
+                  ) : (
+                    <p className={`font-bold text-base leading-none mb-1 ${amazonCheapest ? "text-[#22c55e]" : "text-[#e2e8f0]"}`}>
+                      ${(item.amazon.regularPrice ?? item.amazon.price).toFixed(2)}
+                      {amazonUnit && <span className="text-[#64748b] font-normal text-[11px] ml-1">{amazonUnit.quantity} {amazonUnit.unit}</span>}
                     </p>
                   )}
                   {item.amazon.productName !== item.name && (
@@ -187,15 +208,15 @@ function PricedItemCard({
                       {item.amazon.productName}
                     </p>
                   )}
+                  {amazonSavingsPct !== null && amazonSavingsPct > 0 && (
+                    <p className="text-[#22c55e] text-[10px] leading-none mb-1">
+                      Save {amazonSavingsPct}% per unit vs Walmart
+                    </p>
+                  )}
                 </>
               )}
               <div className="mt-1">
-                <a
-                  href={amazonBuyHref}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-[#22c55e] hover:text-[#16a34a] text-xs transition-colors"
-                >
+                <a href={amazonBuyHref} target="_blank" rel="noopener noreferrer" className="text-[#22c55e] hover:text-[#16a34a] text-xs transition-colors">
                   Buy →
                 </a>
               </div>
@@ -203,34 +224,38 @@ function PricedItemCard({
           ) : (
             <>
               <p className="text-[#475569] text-xs mb-1">Unavailable</p>
-              <a
-                href={`https://www.amazon.com/s?k=${encodeURIComponent(item.name)}&i=grocery`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[#475569] hover:text-[#64748b] text-xs transition-colors"
-              >
+              <a href={`https://www.amazon.com/s?k=${encodeURIComponent(item.name)}&i=grocery`} target="_blank" rel="noopener noreferrer" className="text-[#475569] hover:text-[#64748b] text-xs transition-colors">
                 Search →
               </a>
             </>
           )}
         </div>
 
+        {/* Walmart card */}
         <div className={`rounded-lg p-2.5 border overflow-hidden ${walmartCheapest ? "border-[#22c55e]/40 bg-[#22c55e]/5" : "border-[#1e3050] bg-[#142036]"}`}>
-          <p className="text-[#64748b] text-xs font-medium mb-1">Walmart</p>
+          <div className="flex items-center gap-1.5 mb-1.5 min-w-0">
+            <p className="text-[#64748b] text-xs font-medium shrink-0">Walmart</p>
+            {walmartCheapest && (
+              <span className="text-[9px] font-semibold text-[#22c55e] bg-[#22c55e]/10 border border-[#22c55e]/30 rounded px-1 py-0.5 leading-none shrink-0">
+                Best value
+              </span>
+            )}
+          </div>
           {item.walmart.price !== null ? (
             <>
-              <p className={`font-bold text-base leading-none mb-1 ${walmartCheapest ? "text-[#22c55e]" : "text-[#e2e8f0]"}`}>
-                ${item.walmart.price.toFixed(2)}
-                {walmartCheapest && <span className="text-[10px] ml-0.5">✓</span>}
-              </p>
-              {walmartUnit && (
-                <p className="text-[#64748b] text-[11px] leading-none mb-0.5">
-                  {walmartUnit.quantity} {walmartUnit.unit}
-                </p>
-              )}
-              {!item.sizeMismatch && walmartPricePerUnit !== null && (
-                <p className="text-[#475569] text-[10px] leading-none mb-1">
-                  ${walmartPricePerUnit.toFixed(2)}/{walmartUnit!.unit}
+              {!item.sizeMismatch && walmartPricePerUnit !== null && walmartUnit ? (
+                <>
+                  <p className={`font-bold text-base leading-none mb-0.5 ${walmartCheapest ? "text-[#22c55e]" : "text-[#e2e8f0]"}`}>
+                    ${walmartPricePerUnit.toFixed(2)}/{walmartUnit.unit}
+                  </p>
+                  <p className="text-[#64748b] text-[11px] leading-none mb-1">
+                    ${item.walmart.price.toFixed(2)} · {walmartUnit.quantity} {walmartUnit.unit}
+                  </p>
+                </>
+              ) : (
+                <p className={`font-bold text-base leading-none mb-1 ${walmartCheapest ? "text-[#22c55e]" : "text-[#e2e8f0]"}`}>
+                  ${item.walmart.price.toFixed(2)}
+                  {walmartUnit && <span className="text-[#64748b] font-normal text-[11px] ml-1">{walmartUnit.quantity} {walmartUnit.unit}</span>}
                 </p>
               )}
               {item.walmart.productName !== item.name && (
@@ -238,24 +263,19 @@ function PricedItemCard({
                   {item.walmart.productName}
                 </p>
               )}
-              <a
-                href={walmartBuyHref}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[#22c55e] hover:text-[#16a34a] text-xs transition-colors"
-              >
+              {walmartSavingsPct !== null && walmartSavingsPct > 0 && (
+                <p className="text-[#22c55e] text-[10px] leading-none mb-1">
+                  Save {walmartSavingsPct}% per unit vs Amazon
+                </p>
+              )}
+              <a href={walmartBuyHref} target="_blank" rel="noopener noreferrer" className="text-[#22c55e] hover:text-[#16a34a] text-xs transition-colors">
                 Buy →
               </a>
             </>
           ) : (
             <>
               <p className="text-[#475569] text-xs mb-1">Unavailable</p>
-              <a
-                href={walmartBuyHref}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[#475569] hover:text-[#64748b] text-xs transition-colors"
-              >
+              <a href={walmartBuyHref} target="_blank" rel="noopener noreferrer" className="text-[#475569] hover:text-[#64748b] text-xs transition-colors">
                 Search →
               </a>
             </>
@@ -448,7 +468,7 @@ export default function ResultsPage() {
         </Link>
         <h1 className="text-xl sm:text-3xl font-bold text-[#e2e8f0]">Price Comparison</h1>
         <p className="text-[#94a3b8] text-sm mt-1">
-          {groceryItems.length} pantry staple{groceryItems.length !== 1 ? "s" : ""} · Amazon vs Walmart
+          {groceryItems.length} pantry staple{groceryItems.length !== 1 ? "s" : ""} · unit price comparison
         </p>
       </div>
 
@@ -472,7 +492,7 @@ export default function ResultsPage() {
 
       {pricedItems.some((p) => p === null) && (
         <p className="text-[#94a3b8] text-sm text-center animate-pulse mb-4">
-          Hang on, finding the best prices…
+          Hang on, comparing unit prices across Amazon and Walmart…
         </p>
       )}
 
