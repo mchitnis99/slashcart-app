@@ -417,26 +417,13 @@ export default function ResultsPage() {
   const allLoaded = totals !== null;
   const round = (n: number) => Math.round(n * 100) / 100;
 
-  // Trip savings: split-cart vs single-store comparison
-  let tripSavings: { amount: number; vsStore: string } | null = null;
-  if (allLoaded) {
+  // Show split-cart banner when at least one item is recommended on each store
+  const showSplitBanner = allLoaded && (() => {
     const filled = (pricedItems as PricedItem[]).filter((item) => !item.sizeMismatch);
-    const amazonOnlyTotal = round(filled.reduce((s, item) =>
-      s + (item.amazon.price ?? item.walmart.price ?? 0), 0));
-    const walmartOnlyTotal = round(filled.reduce((s, item) =>
-      s + (item.walmart.price ?? item.amazon.price ?? 0), 0));
-    const singleStoreCheapest = Math.min(amazonOnlyTotal, walmartOnlyTotal);
-    const vsStore = amazonOnlyTotal <= walmartOnlyTotal ? "Amazon" : "Walmart";
-    const recommendedTotal = round(filled.reduce((s, item) => {
-      const { amazonCheapest } = getWinners(item);
-      return s + (amazonCheapest
-        ? (item.amazon.price ?? item.walmart.price ?? 0)
-        : (item.walmart.price ?? item.amazon.price ?? 0));
-    }, 0));
-    const savings = round(singleStoreCheapest - recommendedTotal);
-    console.log(`[trip-savings] amazonOnly=$${amazonOnlyTotal} walmartOnly=$${walmartOnlyTotal} vsStore=${vsStore} recommended=$${recommendedTotal} savings=$${savings}`);
-    if (savings > 0) tripSavings = { amount: savings, vsStore };
-  }
+    const hasAmazon = filled.some((item) => getWinners(item).amazonCheapest);
+    const hasWalmart = filled.some((item) => getWinners(item).walmartCheapest);
+    return hasAmazon && hasWalmart;
+  })();
 
   const excludedPreview =
     excludedItems.slice(0, 3).map((i) => i.name).join(", ") +
@@ -503,13 +490,11 @@ export default function ResultsPage() {
         </p>
       )}
 
-      {tripSavings !== null && (
+      {showSplitBanner && (
         <div className="mb-4 rounded-xl border border-[#1e3050] bg-[#0a1628] px-4 py-3 flex items-start gap-2.5">
           <span className="text-base mt-0.5 shrink-0">💡</span>
           <p className="text-[#e2e8f0] text-sm leading-snug">
-            Splitting your cart saves you{" "}
-            <span className="text-[#22c55e] font-bold">${tripSavings.amount.toFixed(2)}</span>
-            {" "}vs buying everything at {tripSavings.vsStore}
+            We split your cart across stores to get the best unit price on each item.
           </p>
         </div>
       )}
