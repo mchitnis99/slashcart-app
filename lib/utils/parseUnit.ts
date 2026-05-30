@@ -17,6 +17,7 @@ function normalizeUnit(raw: string): string {
   if (/^(kg|kilogram|kilograms)$/.test(u)) return "kg";
   if (/^(pk|pack|packs)$/.test(u)) return "pack";
   if (/rolls?$/.test(u)) return "rolls";
+  if (/sheets?$/.test(u)) return "sheets";
   if (/^(each|ea)$/.test(u)) return "each";
   return u;
 }
@@ -37,6 +38,10 @@ export function parseUnit(productName: string): ParsedUnit | null {
   // "N [modifiers] Rolls" (e.g. "6 Double Rolls", "18 Super Mega Rolls")
   const rolls = productName.match(/(\d+(?:\.\d+)?)\s+(?:\w+\s+)*rolls?\b/i);
   if (rolls) return { quantity: Number(rolls[1]), unit: "rolls" };
+
+  // "N [modifiers] Sheets" (e.g. "120 Sheets", "2-ply Sheets")
+  const sheets = productName.match(/(\d+(?:\.\d+)?)\s+(?:\w+\s+)*sheets?\b/i);
+  if (sheets) return { quantity: Number(sheets[1]), unit: "sheets" };
 
   // ml → fl oz (e.g. "500ml", "750 ml") — before liter check to avoid "ml" matching "l"
   const ml = productName.match(/(\d+(?:\.\d+)?)\s*ml\b/i);

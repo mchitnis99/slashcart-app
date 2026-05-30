@@ -420,7 +420,7 @@ export default function ResultsPage() {
   // Trip savings: split-cart vs single-store comparison
   let tripSavings: { amount: number; vsStore: string } | null = null;
   if (allLoaded) {
-    const filled = pricedItems as PricedItem[];
+    const filled = (pricedItems as PricedItem[]).filter((item) => !item.sizeMismatch);
     const amazonOnlyTotal = round(filled.reduce((s, item) =>
       s + (item.amazon.price ?? item.walmart.price ?? 0), 0));
     const walmartOnlyTotal = round(filled.reduce((s, item) =>
@@ -428,12 +428,13 @@ export default function ResultsPage() {
     const singleStoreCheapest = Math.min(amazonOnlyTotal, walmartOnlyTotal);
     const vsStore = amazonOnlyTotal <= walmartOnlyTotal ? "Amazon" : "Walmart";
     const recommendedTotal = round(filled.reduce((s, item) => {
-      const store = defaultStore(item);
-      return s + (store === "amazon"
+      const { amazonCheapest } = getWinners(item);
+      return s + (amazonCheapest
         ? (item.amazon.price ?? item.walmart.price ?? 0)
         : (item.walmart.price ?? item.amazon.price ?? 0));
     }, 0));
     const savings = round(singleStoreCheapest - recommendedTotal);
+    console.log(`[trip-savings] amazonOnly=$${amazonOnlyTotal} walmartOnly=$${walmartOnlyTotal} vsStore=${vsStore} recommended=$${recommendedTotal} savings=$${savings}`);
     if (savings > 0) tripSavings = { amount: savings, vsStore };
   }
 

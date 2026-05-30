@@ -20,7 +20,7 @@ export function parseSize(productName: string, store?: string): ParsedUnit | nul
   if (parsed) return parsed;
 
   const m = productName.match(
-    /(\d+(?:\.\d+)?)\s*(fluid\s+ounces?|fl\.?\s*oz|ounces?|oz|pounds?|lbs?|lb|kilograms?|kg|grams?|g(?![a-z])|ml|litr(?:es?|ers?)|count|ct)\b/i
+    /(\d+(?:\.\d+)?)\s*(fluid\s+ounces?|fl\.?\s*oz|ounces?|oz|pounds?|lbs?|lb|kilograms?|kg|grams?|g(?![a-z])|ml|litr(?:es?|ers?)|count|ct|sheets?|rolls?)\b/i
   );
   if (m) {
     const qty = Number(m[1]);
@@ -33,6 +33,8 @@ export function parseSize(productName: string, store?: string): ParsedUnit | nul
     if (raw === "ml")                                     return { quantity: Math.round(qty * 0.033814 * 100) / 100, unit: "fl oz" };
     if (raw.startsWith("litr"))                           return { quantity: Math.round(qty * 33.814  * 100) / 100, unit: "fl oz" };
     if (raw === "count" || raw === "ct")                  return { quantity: qty, unit: "count" };
+    if (raw.startsWith("sheet"))                          return { quantity: qty, unit: "sheets" };
+    if (raw.startsWith("roll"))                           return { quantity: qty, unit: "rolls" };
   }
 
   if (store && productName.trim().length > 0) {
