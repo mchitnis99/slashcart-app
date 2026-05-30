@@ -98,6 +98,8 @@ function PricedItemCard({
       ? item.amazon.bulkPrice / item.amazon.bulkQuantity
       : null;
 
+  const checkedLabel = `Checked ${new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
+
   const amazonBuyHref =
     bulkSelected === "bulk" && item.amazon.bulkAsin
       ? `https://www.amazon.com/dp/${item.amazon.bulkAsin}?tag=slashcart-20`
@@ -117,7 +119,6 @@ function PricedItemCard({
     <div className="rounded-xl border border-[#1e3050] bg-[#0d1830] px-3 py-3 sm:px-4 sm:py-4 overflow-hidden">
       <div className="mb-3 min-w-0">
         <p className="font-medium text-[#e2e8f0] capitalize truncate">{item.name}</p>
-        <p className="text-[#475569] text-xs">{item.quantity} {item.unit}</p>
         {item.sizeMismatch && (
           <p className="text-[#f59e0b] text-[10px] mt-0.5">
             ⚠ Different sizes — prices not directly comparable
@@ -220,6 +221,7 @@ function PricedItemCard({
                   Buy →
                 </a>
               </div>
+              <p className="text-[10px] text-white/30 mt-1.5">{checkedLabel}</p>
             </>
           ) : (
             <>
@@ -227,6 +229,7 @@ function PricedItemCard({
               <a href={`https://www.amazon.com/s?k=${encodeURIComponent(item.name)}&i=grocery`} target="_blank" rel="noopener noreferrer" className="text-[#475569] hover:text-[#64748b] text-xs transition-colors">
                 Search →
               </a>
+              <p className="text-[10px] text-white/30 mt-1.5">{checkedLabel}</p>
             </>
           )}
         </div>
@@ -271,6 +274,7 @@ function PricedItemCard({
               <a href={walmartBuyHref} target="_blank" rel="noopener noreferrer" className="text-[#22c55e] hover:text-[#16a34a] text-xs transition-colors">
                 Buy →
               </a>
+              <p className="text-[10px] text-white/30 mt-1.5">{checkedLabel}</p>
             </>
           ) : (
             <>
@@ -278,6 +282,7 @@ function PricedItemCard({
               <a href={walmartBuyHref} target="_blank" rel="noopener noreferrer" className="text-[#475569] hover:text-[#64748b] text-xs transition-colors">
                 Search →
               </a>
+              <p className="text-[10px] text-white/30 mt-1.5">{checkedLabel}</p>
             </>
           )}
         </div>
@@ -410,12 +415,31 @@ export default function ResultsPage() {
   if (error) return <ErrorState message={error} />;
 
   const allLoaded = totals !== null;
+  const round = (n: number) => Math.round(n * 100) / 100;
+
+  // Trip savings: split-cart vs single-store comparison
+  let tripSavings: { amount: number; vsStore: string } | null = null;
+  if (allLoaded) {
+    const filled = pricedItems as PricedItem[];
+    const amazonOnlyTotal = round(filled.reduce((s, item) =>
+      s + (item.amazon.price ?? item.walmart.price ?? 0), 0));
+    const walmartOnlyTotal = round(filled.reduce((s, item) =>
+      s + (item.walmart.price ?? item.amazon.price ?? 0), 0));
+    const singleStoreCheapest = Math.min(amazonOnlyTotal, walmartOnlyTotal);
+    const vsStore = amazonOnlyTotal <= walmartOnlyTotal ? "Amazon" : "Walmart";
+    const recommendedTotal = round(filled.reduce((s, item) => {
+      const store = defaultStore(item);
+      return s + (store === "amazon"
+        ? (item.amazon.price ?? item.walmart.price ?? 0)
+        : (item.walmart.price ?? item.amazon.price ?? 0));
+    }, 0));
+    const savings = round(singleStoreCheapest - recommendedTotal);
+    if (savings > 0) tripSavings = { amount: savings, vsStore };
+  }
 
   const excludedPreview =
     excludedItems.slice(0, 3).map((i) => i.name).join(", ") +
     (excludedItems.length > 3 ? ", etc." : "");
-
-  const round = (n: number) => Math.round(n * 100) / 100;
 
   // Derive selected items by iterating groceryItems so the index always
   // matches storeSelections/bulkSelections keys.
@@ -476,6 +500,17 @@ export default function ResultsPage() {
         <p className="text-[#475569] text-sm mb-5 px-1">
           Showing pantry staples only. Fresh items ({excludedPreview}) are not included.
         </p>
+      )}
+
+      {tripSavings !== null && (
+        <div className="mb-4 rounded-xl border border-[#1e3050] bg-[#0a1628] px-4 py-3 flex items-start gap-2.5">
+          <span className="text-base mt-0.5 shrink-0">💡</span>
+          <p className="text-[#e2e8f0] text-sm leading-snug">
+            Splitting your cart saves you{" "}
+            <span className="text-[#22c55e] font-bold">${tripSavings.amount.toFixed(2)}</span>
+            {" "}vs buying everything at {tripSavings.vsStore}
+          </p>
+        </div>
       )}
 
       {allLoaded && totalAnnualSavings > 0 && (
