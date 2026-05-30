@@ -1,3 +1,4 @@
+import { ClipboardList, ShoppingCart, TrendingDown } from "lucide-react";
 import GroceryInput from "./components/GroceryInput";
 
 function SlashCartLogo() {
@@ -49,12 +50,12 @@ export default function HomePage() {
 
       <div className="mt-10 sm:mt-16 grid grid-cols-3 gap-3 sm:gap-6 max-w-xl mx-auto text-center px-2 sm:px-0">
         {[
-          { icon: "🧾", label: "Paste or snap a list" },
-          { icon: "🛒", label: "Amazon & Walmart prices" },
-          { icon: "💸", label: "See what you save" },
+          { icon: <ClipboardList className="w-8 h-8 text-[#4ade80]" />, label: "Paste or snap a list" },
+          { icon: <ShoppingCart className="w-8 h-8 text-[#4ade80]" />, label: "Amazon & Walmart prices" },
+          { icon: <TrendingDown className="w-8 h-8 text-[#4ade80]" />, label: "See what you save" },
         ].map(({ icon, label }) => (
-          <div key={label} className="space-y-1">
-            <div className="text-2xl">{icon}</div>
+          <div key={label} className="space-y-2">
+            <div className="flex justify-center">{icon}</div>
             <div className="text-[#94a3b8] text-xs">{label}</div>
           </div>
         ))}
