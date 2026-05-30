@@ -1,3 +1,11 @@
+import {
+  isRelevant,
+  isSpecialty,
+  extractBrands,
+  passesBrandCheck,
+  passesNegativeKeywords,
+} from "@/lib/scrapers/filters";
+
 export type AmazonResult = {
   name: string;
   price: number;
@@ -33,33 +41,6 @@ function toStringOrNull(val: unknown): string | null {
   return null;
 }
 
-const STOP_WORDS = new Set([
-  "a", "an", "the", "and", "or", "for", "with", "of", "in", "to", "is", "at", "by",
-]);
-
-const SPECIALTY_WORDS = [
-  "whitening", "2-in-1", "organic", "premium", "professional",
-  "advanced", "extra strength", "sensitive", "charcoal", "natural",
-  "plus", "pro", "ultra", "clinical", "maximum", "complete",
-];
-
-function isRelevant(productName: string, query: string): boolean {
-  const keywords = query
-    .toLowerCase()
-    .split(/\s+/)
-    .filter((w) => w.length > 2 && !STOP_WORDS.has(w));
-  if (keywords.length === 0) return true;
-  const nameWords = new Set(productName.toLowerCase().split(/\W+/).filter(Boolean));
-  const matchCount = keywords.filter((kw) => nameWords.has(kw)).length;
-  return matchCount >= Math.max(1, Math.ceil(keywords.length / 2));
-}
-
-function isSpecialty(productName: string, query: string): boolean {
-  const queryLower = query.toLowerCase();
-  const nameLower = productName.toLowerCase();
-  return SPECIALTY_WORDS.some((w) => nameLower.includes(w) && !queryLower.includes(w));
-}
-
 export async function scrapeAmazonPrice(itemName: string): Promise<AmazonResult | null> {
   const apiKey = process.env.SCRAPERAPI_KEY ?? "";
   const url =
@@ -93,9 +74,12 @@ export async function scrapeAmazonPrice(itemName: string): Promise<AmazonResult 
 
   console.log(`[amazon] Got ${results.length} results for "${itemName}"`);
 
+  const brands = extractBrands(itemName);
+
   type Candidate = { result: Record<string, unknown>; price: number; asin: string | null };
   const standard: Candidate[] = [];
   const specialty: Candidate[] = [];
+  const noBrand: Candidate[] = [];
 
   for (const result of results) {
     const price = parsePrice(result.price);
@@ -104,33 +88,36 @@ export async function scrapeAmazonPrice(itemName: string): Promise<AmazonResult 
     // Bulk listings are handled in a separate pass below
     if (BULK_RE.test(title)) continue;
 
-    const relevant = isRelevant(title, itemName);
-    const special = relevant && price !== null ? isSpecialty(title, itemName) : false;
-    const label = !relevant ? "FAIL" : special ? "SPECIALTY" : "PASS";
-    console.log(`[amazon] [${label}] "${title}" @ ${price !== null ? `$${price}` : "no price"} (query: "${itemName}")`);
+    if (!isRelevant(title, itemName)) {
+      console.log(`[amazon] [FAIL] "${title}" @ ${price !== null ? `$${price}` : "no price"} (query: "${itemName}")`);
+      continue;
+    }
+    if (price === null) continue;
 
-    if (price === null || !relevant) continue;
+    if (!passesNegativeKeywords(title, itemName, "amazon")) continue;
+
+    const brandOk = passesBrandCheck(title, brands);
+    const special = isSpecialty(title, itemName);
+    const label = !brandOk ? "BRAND-SKIP" : special ? "SPECIALTY" : "PASS";
+    console.log(`[amazon] [${label}] "${title}" @ $${price} (query: "${itemName}")`);
+
     const asin = toStringOrNull(result.asin ?? result.product_id);
-    if (special) specialty.push({ result, price, asin });
-    else standard.push({ result, price, asin });
+    if (!brandOk)     noBrand.push({ result, price, asin });
+    else if (special) specialty.push({ result, price, asin });
+    else              standard.push({ result, price, asin });
   }
 
-  // Cheapest standard result wins; fall back to cheapest specialty
-  const pool = standard.length > 0 ? standard : specialty;
+  // Pick: standard → specialty → noBrand → first priced fallback
+  const pool = standard.length > 0 ? standard : specialty.length > 0 ? specialty : noBrand;
   let regularCandidate: Candidate | null = pool.length > 0
     ? pool.reduce((a, b) => (b.price < a.price ? b : a))
     : null;
 
-  // Last resort: first priced result regardless of relevance or bulk label
   if (regularCandidate === null) {
     for (const result of results) {
       const price = parsePrice(result.price);
       if (price !== null) {
-        regularCandidate = {
-          result,
-          price,
-          asin: toStringOrNull(result.asin ?? result.product_id),
-        };
+        regularCandidate = { result, price, asin: toStringOrNull(result.asin ?? result.product_id) };
         break;
       }
     }
@@ -171,7 +158,7 @@ export async function scrapeAmazonPrice(itemName: string): Promise<AmazonResult 
     (bulkPrice !== null && bulkQuantity !== null
       ? `, bulk: $${bulkPrice} (${bulkQuantity} units, $${(bulkPrice / bulkQuantity).toFixed(2)}/unit)`
       : "") +
-    ` (from ${standard.length} standard, ${specialty.length} specialty)`
+    ` (from ${standard.length} standard, ${specialty.length} specialty, ${noBrand.length} no-brand)`
   );
 
   return {

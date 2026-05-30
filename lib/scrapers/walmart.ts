@@ -1,30 +1,17 @@
+import {
+  isRelevant,
+  isSpecialty,
+  extractBrands,
+  passesBrandCheck,
+  passesNegativeKeywords,
+} from "@/lib/scrapers/filters";
+
 export type WalmartResult = {
   name: string;
   price: number;
   inStock: boolean;
   url: string | null;
 };
-
-const STOP_WORDS = new Set(["a", "an", "the", "and", "or", "for", "with", "of", "in", "to", "is", "at", "by"]);
-
-const SPECIALTY_WORDS = ["organic", "gluten-free", "gluten free", "blend", "alternative", "vegan", "keto", "paleo", "non-gmo", "plant-based"];
-
-function isRelevant(productName: string, query: string): boolean {
-  const keywords = query
-    .toLowerCase()
-    .split(/\s+/)
-    .filter((w) => w.length > 2 && !STOP_WORDS.has(w));
-  if (keywords.length === 0) return true;
-  const nameWords = new Set(productName.toLowerCase().split(/\W+/).filter(Boolean));
-  const matchCount = keywords.filter((kw) => nameWords.has(kw)).length;
-  return matchCount >= Math.max(1, Math.ceil(keywords.length / 2));
-}
-
-function isSpecialty(productName: string, query: string): boolean {
-  const queryLower = query.toLowerCase();
-  const nameLower = productName.toLowerCase();
-  return SPECIALTY_WORDS.some((w) => nameLower.includes(w) && !queryLower.includes(w));
-}
 
 function parsePrice(raw: unknown): number | null {
   if (typeof raw === "number") return raw > 0 && raw < 10000 ? raw : null;
@@ -68,33 +55,46 @@ export async function scrapeWalmartPrice(itemName: string): Promise<WalmartResul
 
   console.log(`[walmart] Got ${results.length} results for "${itemName}"`);
 
-  // Collect all relevant, priced candidates
+  const brands = extractBrands(itemName);
+
   type Candidate = { name: string; price: number; url: string | null };
   const standard: Candidate[] = [];
   const specialty: Candidate[] = [];
+  const noBrand: Candidate[] = [];
 
   for (const result of results) {
     const price = parsePrice(result.price ?? result.sale_price ?? result.primary_price);
     const name = String(result.name ?? result.title ?? itemName);
-    const url = (typeof result.url === "string" && result.url) ? result.url
-              : (typeof result.link === "string" && result.link) ? result.link
-              : null;
-    const relevant = isRelevant(name, itemName);
-    const special = relevant && price !== null ? isSpecialty(name, itemName) : false;
-    console.log(`[walmart] [${relevant ? (special ? "SPECIALTY" : "PASS") : "FAIL"}] "${name}" @ ${price !== null ? `$${price}` : "no price"} url=${url ?? "none"} (query: "${itemName}")`);
-    if (price === null || !relevant) continue;
-    if (special) specialty.push({ name, price, url });
-    else standard.push({ name, price, url });
+    const resultUrl = (typeof result.url === "string" && result.url) ? result.url
+                    : (typeof result.link === "string" && result.link) ? result.link
+                    : null;
+
+    if (!isRelevant(name, itemName)) {
+      console.log(`[walmart] [FAIL] "${name}" @ ${price !== null ? `$${price}` : "no price"} (query: "${itemName}")`);
+      continue;
+    }
+    if (price === null) continue;
+
+    if (!passesNegativeKeywords(name, itemName, "walmart")) continue;
+
+    const brandOk = passesBrandCheck(name, brands);
+    const special = isSpecialty(name, itemName);
+    const label = !brandOk ? "BRAND-SKIP" : special ? "SPECIALTY" : "PASS";
+    console.log(`[walmart] [${label}] "${name}" @ $${price} (query: "${itemName}")`);
+
+    if (!brandOk)     noBrand.push({ name, price, url: resultUrl });
+    else if (special) specialty.push({ name, price, url: resultUrl });
+    else              standard.push({ name, price, url: resultUrl });
   }
 
-  // Pick cheapest standard result; fall back to cheapest specialty if no standard results
-  const pool = standard.length > 0 ? standard : specialty;
+  // Pick cheapest: standard → specialty → noBrand
+  const pool = standard.length > 0 ? standard : specialty.length > 0 ? specialty : noBrand;
   if (pool.length === 0) {
     console.error(`[walmart] No relevant priced results for "${itemName}". Response:`, JSON.stringify(data).slice(0, 500));
     return null;
   }
 
   const best = pool.reduce((a, b) => (b.price < a.price ? b : a));
-  console.log(`[walmart] Selected: "${best.name}" @ $${best.price} url=${best.url ?? "none"} (from ${standard.length} standard, ${specialty.length} specialty)`);
+  console.log(`[walmart] Selected: "${best.name}" @ $${best.price} (from ${standard.length} standard, ${specialty.length} specialty, ${noBrand.length} no-brand)`);
   return { name: best.name, price: best.price, inStock: true, url: best.url };
 }
