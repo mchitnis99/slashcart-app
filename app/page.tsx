@@ -40,14 +40,8 @@ export default function HomePage() {
         <p className="text-[#22c55e] font-semibold text-lg sm:text-xl mb-3">
           Most people overpay because they only ever look at shelf prices.
         </p>
-        <p className="text-[#94a3b8] text-base sm:text-lg max-w-lg mx-auto mb-3">
+        <p className="text-[#94a3b8] text-base sm:text-lg max-w-lg mx-auto">
           We unlock the savings hidden in per-unit pricing across Amazon and Walmart — for your entire list in one click.
-        </p>
-        <p className="text-white/50 text-xs font-medium tracking-widest uppercase mb-3">
-          Real prices. Live from Amazon &amp; Walmart. Not AI estimates.
-        </p>
-        <p className="text-[#64748b] text-sm sm:text-base max-w-md mx-auto">
-          It&apos;s easy — just paste your grocery list or upload a receipt!
         </p>
       </div>
 
