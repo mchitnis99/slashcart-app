@@ -537,18 +537,26 @@ export default function ResultsPage() {
       )}
 
       {allLoaded && receiptTotal !== null ? (
-        <div className="mb-4 rounded-xl border border-[#1e3050] bg-[#0a1628] px-4 py-3 space-y-1">
-          <p className="text-[#94a3b8] text-sm">
+        <div className="mb-5 rounded-xl bg-[#0d2e1a] border border-[#22c55e]/40 px-5 py-5">
+          <p className="text-[#94a3b8] text-sm mb-1">
             You paid{" "}
             <span className="text-[#e2e8f0] font-semibold">${receiptTotal.toFixed(2)}</span>
-            {receiptStore ? ` at ${receiptStore}` : ""}.{" "}
-            Buy on SlashCart&apos;s recommended stores for{" "}
-            <span className="text-[#e2e8f0] font-semibold">${receiptRecommendedTotal.toFixed(2)}</span>.
+            {receiptStore ? ` at ${receiptStore}` : ""}
           </p>
-          {totalReceiptSavings > 0 && (
-            <p className="text-[#22c55e] text-sm font-semibold">
-              Save ${totalReceiptSavings.toFixed(2)} on your next shop
-            </p>
+          <p className="text-[#94a3b8] text-sm mb-4">
+            Buy on SlashCart&apos;s recommended stores for{" "}
+            <span className="text-[#e2e8f0] font-semibold">${receiptRecommendedTotal.toFixed(2)}</span>
+          </p>
+          {totalReceiptSavings > 0 ? (
+            <div className="flex items-center gap-3">
+              <span className="text-2xl shrink-0">💰</span>
+              <div>
+                <p className="text-[#94a3b8] text-xs uppercase tracking-wide font-medium">Save on your next shop</p>
+                <p className="text-[#22c55e] text-4xl font-bold leading-tight">${totalReceiptSavings.toFixed(2)}</p>
+              </div>
+            </div>
+          ) : (
+            <p className="text-[#22c55e] text-sm font-medium">✓ You got good prices on all these items</p>
           )}
         </div>
       ) : showSplitBanner ? (
@@ -608,6 +616,23 @@ export default function ResultsPage() {
               <span className="text-[#22c55e] font-bold text-xl sm:text-2xl">
                 ${totalAnnualSavings.toFixed(2)}
               </span>
+            </div>
+          )}
+
+          {receiptTotal !== null && totalReceiptSavings > 0 && (
+            <div className="rounded-xl bg-[#0d2e1a] border border-[#22c55e]/40 px-4 py-4 flex items-center justify-between gap-4 mb-4">
+              <div className="min-w-0">
+                <p className="text-[#94a3b8] text-xs truncate">
+                  vs. ${receiptTotal.toFixed(2)}{receiptStore ? ` at ${receiptStore}` : ""}
+                </p>
+                <p className="text-[#e2e8f0] text-sm font-medium">
+                  Buy on SlashCart for ${receiptRecommendedTotal.toFixed(2)}
+                </p>
+              </div>
+              <div className="text-right shrink-0">
+                <p className="text-[#94a3b8] text-xs">you save</p>
+                <p className="text-[#22c55e] text-2xl font-bold leading-tight">${totalReceiptSavings.toFixed(2)}</p>
+              </div>
             </div>
           )}
 
