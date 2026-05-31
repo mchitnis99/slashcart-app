@@ -41,7 +41,7 @@ function toStringOrNull(val: unknown): string | null {
   return null;
 }
 
-export async function scrapeAmazonPrice(itemName: string): Promise<AmazonResult | null> {
+export async function scrapeAmazonPrice(itemName: string, pricePaid?: number): Promise<AmazonResult | null> {
   const apiKey = process.env.SCRAPERAPI_KEY ?? "";
   const url =
     `https://api.scraperapi.com/structured/amazon/search` +
@@ -80,6 +80,8 @@ export async function scrapeAmazonPrice(itemName: string): Promise<AmazonResult 
   const standard: Candidate[] = [];
   const specialty: Candidate[] = [];
   const noBrand: Candidate[] = [];
+  const tooBig: Candidate[] = [];
+  const tooSmall: Candidate[] = [];
 
   for (const result of results) {
     const price = parsePrice(result.price);
@@ -96,6 +98,20 @@ export async function scrapeAmazonPrice(itemName: string): Promise<AmazonResult 
 
     if (!passesNegativeKeywords(title, itemName, "amazon")) continue;
 
+    // Sanity check: if price is < 50% of what the user paid, it's likely a travel/mini size
+    if (pricePaid && price < pricePaid * 0.50) {
+      console.log(`[amazon] [TOO-SMALL] "${title}" @ $${price} (pricePaid=$${pricePaid}, <50%) (query: "${itemName}")`);
+      tooSmall.push({ result, price, asin: toStringOrNull(result.asin ?? result.product_id) });
+      continue;
+    }
+
+    // Sanity check: if price is > 300% of what the user paid, it's likely a multi-pack or bulk
+    if (pricePaid && price > pricePaid * 3.00) {
+      console.log(`[amazon] [TOO-BIG] "${title}" @ $${price} (pricePaid=$${pricePaid}, >300%) (query: "${itemName}")`);
+      tooBig.push({ result, price, asin: toStringOrNull(result.asin ?? result.product_id) });
+      continue;
+    }
+
     const brandOk = passesBrandCheck(title, brands);
     const special = isSpecialty(title, itemName);
     const label = !brandOk ? "BRAND-SKIP" : special ? "SPECIALTY" : "PASS";
@@ -107,8 +123,12 @@ export async function scrapeAmazonPrice(itemName: string): Promise<AmazonResult 
     else              standard.push({ result, price, asin });
   }
 
-  // Pick: standard → specialty → noBrand → first priced fallback
-  const pool = standard.length > 0 ? standard : specialty.length > 0 ? specialty : noBrand;
+  // Pick: standard → specialty → noBrand → tooBig → tooSmall → first priced fallback
+  const pool = standard.length > 0 ? standard
+    : specialty.length > 0 ? specialty
+    : noBrand.length > 0 ? noBrand
+    : tooBig.length > 0 ? tooBig
+    : tooSmall;
   let regularCandidate: Candidate | null = pool.length > 0
     ? pool.reduce((a, b) => (b.price < a.price ? b : a))
     : null;
@@ -158,7 +178,7 @@ export async function scrapeAmazonPrice(itemName: string): Promise<AmazonResult 
     (bulkPrice !== null && bulkQuantity !== null
       ? `, bulk: $${bulkPrice} (${bulkQuantity} units, $${(bulkPrice / bulkQuantity).toFixed(2)}/unit)`
       : "") +
-    ` (from ${standard.length} standard, ${specialty.length} specialty, ${noBrand.length} no-brand)`
+    ` (from ${standard.length} standard, ${specialty.length} specialty, ${noBrand.length} no-brand, ${tooBig.length} too-big, ${tooSmall.length} too-small)`
   );
 
   return {

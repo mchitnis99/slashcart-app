@@ -30,6 +30,7 @@ Each item must have:
 - name: string (see brand name rules below)
 - quantity: number (numeric value only, default 1 if unclear)
 - unit: string (e.g. "lbs", "oz", "gallon", "dozen", "pack", "count" — use "count" if no unit specified)
+- pricePaid: number | null — ONLY when parsing a receipt image with a visible price for that line item. Set to null or omit when parsing a typed list or when no price is visible for the item.
 
 The input is from a grocery store receipt. The store name (e.g. "Stop & Shop", "Whole Foods", "Walmart", "Kroger", "Safeway") will appear on the receipt but is NEVER a brand name for any item. Never include the store name as part of any item name.
 
@@ -42,16 +43,21 @@ Brand name rules — follow these exactly:
 6. When in doubt about a brand name, omit it entirely and return only the generic product name. It is always better to search for "old fashioned oats" than "Bob's Red Mill old fashioned oats" if Bob's Red Mill is not clearly printed next to that item on the receipt. Generic searches return better results than wrong brand searches.
 7. The word "butter" should only appear in an item name if the product is literally butter or a butter substitute. Do not append "butter" to oil products — "avocado oil" is not "avocado oil butter".
 
-Return a JSON object with two arrays:
+Return a JSON object with:
 - items: pantry_staple items only
 - excluded_items: fresh items only
+- receiptTotal: number | null — the grand total shown on the receipt, if visible (null otherwise)
+- receiptStore: string | null — the store name from the receipt header, if visible (null otherwise)
 
 Rules:
 - Consolidate duplicates
 - Return ONLY valid JSON — no markdown, no explanation
 
-Example output:
-{"items":[{"name":"King Arthur bread flour","quantity":1,"unit":"lbs"},{"name":"Filippo Berio extra virgin olive oil","quantity":1,"unit":"count"}],"excluded_items":[{"name":"chicken breast","quantity":2,"unit":"lbs"},{"name":"milk","quantity":1,"unit":"gallon"}]}`;
+Example output (receipt image):
+{"items":[{"name":"King Arthur bread flour","quantity":1,"unit":"lbs","pricePaid":5.99},{"name":"Filippo Berio extra virgin olive oil","quantity":1,"unit":"count","pricePaid":8.49}],"excluded_items":[{"name":"chicken breast","quantity":2,"unit":"lbs","pricePaid":12.00}],"receiptTotal":127.43,"receiptStore":"Stop & Shop"}
+
+Example output (typed list):
+{"items":[{"name":"King Arthur bread flour","quantity":1,"unit":"lbs"},{"name":"Filippo Berio extra virgin olive oil","quantity":1,"unit":"count"}],"excluded_items":[{"name":"chicken breast","quantity":2,"unit":"lbs"}],"receiptTotal":null,"receiptStore":null}`;
 
   const userContent: Anthropic.MessageParam["content"] = [];
 
@@ -94,18 +100,21 @@ Example output:
       );
     }
 
+    type ParsedItem = { name: string; quantity: number; unit: string; pricePaid?: number | null };
     const parsed = JSON.parse(jsonMatch[0]) as {
-      items?: Array<{ name: string; quantity: number; unit: string }>;
-      excluded_items?: Array<{ name: string; quantity: number; unit: string }>;
+      items?: ParsedItem[];
+      excluded_items?: ParsedItem[];
+      receiptTotal?: number | null;
+      receiptStore?: string | null;
     };
 
     // Handle legacy array response shape gracefully
-    const items = Array.isArray(parsed)
-      ? (parsed as Array<{ name: string; quantity: number; unit: string }>)
-      : (parsed.items ?? []);
+    const items = Array.isArray(parsed) ? (parsed as ParsedItem[]) : (parsed.items ?? []);
     const excludedItems = Array.isArray(parsed) ? [] : (parsed.excluded_items ?? []);
+    const receiptTotal = Array.isArray(parsed) ? null : (parsed.receiptTotal ?? null);
+    const receiptStore = Array.isArray(parsed) ? null : (parsed.receiptStore ?? null);
 
-    return Response.json({ items, excluded_items: excludedItems });
+    return Response.json({ items, excluded_items: excludedItems, receipt_total: receiptTotal, receipt_store: receiptStore });
   } catch (err) {
     console.error("Anthropic API error:", err);
     return Response.json(

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { parseSize, toComparableSize } from "@/lib/utils/parseSize";
 
-type GroceryItem = { name: string; quantity: number; unit: string };
+type GroceryItem = { name: string; quantity: number; unit: string; pricePaid?: number | null };
 type StoreResult = { price: number | null; productName: string; url?: string | null };
 type AmazonStoreResult = StoreResult & {
   asin: string | null;
@@ -63,12 +63,14 @@ function PricedItemCard({
   onSelect,
   bulkSelected,
   onBulkToggle,
+  receiptStore,
 }: {
   item: PricedItem;
   selected: "amazon" | "walmart";
   onSelect: (store: "amazon" | "walmart") => void;
   bulkSelected: "single" | "bulk";
   onBulkToggle: (v: "single" | "bulk") => void;
+  receiptStore?: string | null;
 }) {
   const amazonUnit = item.amazon.productName ? parseSize(item.amazon.productName) : null;
   const walmartUnit = item.walmart.productName ? parseSize(item.walmart.productName) : null;
@@ -79,6 +81,7 @@ function PricedItemCard({
     walmartUnit && item.walmart.price !== null ? item.walmart.price / walmartUnit.quantity : null;
 
   const { amazonCheapest, walmartCheapest } = getWinners(item);
+  const recommendedPrice = amazonCheapest ? item.amazon.price : item.walmart.price;
 
   // Normalized PPU for cross-store savings % (same unit after lb→oz etc. conversion)
   const amazonNorm = toComparableSize(amazonUnit);
@@ -119,6 +122,18 @@ function PricedItemCard({
     <div className="rounded-xl border border-[#1e3050] bg-[#0d1830] px-3 py-3 sm:px-4 sm:py-4 overflow-hidden">
       <div className="mb-3 min-w-0">
         <p className="font-medium text-[#e2e8f0] capitalize truncate">{item.name}</p>
+        {item.pricePaid != null && (
+          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+            <span className="text-[#475569] text-xs">
+              You paid ${item.pricePaid.toFixed(2)}{receiptStore ? ` at ${receiptStore}` : ""}
+            </span>
+            {recommendedPrice !== null && (
+              recommendedPrice < item.pricePaid
+                ? <span className="text-[#22c55e] text-xs font-medium">Save ${(item.pricePaid - recommendedPrice).toFixed(2)} vs receipt</span>
+                : <span className="text-[#22c55e] text-xs font-medium">Good price ✓</span>
+            )}
+          </div>
+        )}
         {item.sizeMismatch && (
           <p className="text-[#f59e0b] text-[10px] mt-0.5">
             ⚠ Different sizes — prices not directly comparable
@@ -345,6 +360,8 @@ export default function ResultsPage() {
   const [totals, setTotals] = useState<Totals | null>(null);
   const [storeSelections, setStoreSelections] = useState<Record<number, "amazon" | "walmart">>({});
   const [bulkSelections, setBulkSelections] = useState<Record<number, "single" | "bulk">>({});
+  const [receiptTotal, setReceiptTotal] = useState<number | null>(null);
+  const [receiptStore, setReceiptStore] = useState<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -353,6 +370,11 @@ export default function ResultsPage() {
     if (excluded) {
       try { setExcludedItems(JSON.parse(excluded)); } catch {}
     }
+
+    const rawReceiptTotal = sessionStorage.getItem("slashcart_receipt_total");
+    const rawReceiptStore = sessionStorage.getItem("slashcart_receipt_store");
+    if (rawReceiptTotal) { const n = parseFloat(rawReceiptTotal); if (!isNaN(n)) setReceiptTotal(n); }
+    if (rawReceiptStore) setReceiptStore(rawReceiptStore);
 
     const raw = sessionStorage.getItem("slashcart_items");
     if (!raw) {
@@ -425,6 +447,30 @@ export default function ResultsPage() {
     return hasAmazon && hasWalmart;
   })();
 
+  // Receipt comparison: total = sum of recommended prices; savings = exact sum of per-item "Save $X" lines
+  const receiptRecommendedTotal = allLoaded
+    ? round((pricedItems.filter(Boolean) as PricedItem[]).reduce((s, item) => {
+        const { amazonCheapest } = getWinners(item);
+        return s + ((amazonCheapest ? item.amazon.price : item.walmart.price) ?? 0);
+      }, 0))
+    : 0;
+
+  let totalReceiptSavings = 0;
+  if (allLoaded) {
+    let running = 0;
+    (pricedItems.filter(Boolean) as PricedItem[]).forEach((item) => {
+      if (item.pricePaid == null) return;
+      const { amazonCheapest } = getWinners(item);
+      const recPrice = (amazonCheapest ? item.amazon.price : item.walmart.price) ?? null;
+      const saving = recPrice !== null && recPrice < item.pricePaid
+        ? round(item.pricePaid - recPrice)
+        : 0;
+      running = round(running + saving);
+      console.log(`[receipt-savings] "${item.name}" pricePaid=$${item.pricePaid} recommended=$${recPrice ?? "n/a"} saving=$${saving} running=$${running}`);
+    });
+    totalReceiptSavings = running;
+  }
+
   const excludedPreview =
     excludedItems.slice(0, 3).map((i) => i.name).join(", ") +
     (excludedItems.length > 3 ? ", etc." : "");
@@ -490,14 +536,29 @@ export default function ResultsPage() {
         </p>
       )}
 
-      {showSplitBanner && (
+      {allLoaded && receiptTotal !== null ? (
+        <div className="mb-4 rounded-xl border border-[#1e3050] bg-[#0a1628] px-4 py-3 space-y-1">
+          <p className="text-[#94a3b8] text-sm">
+            You paid{" "}
+            <span className="text-[#e2e8f0] font-semibold">${receiptTotal.toFixed(2)}</span>
+            {receiptStore ? ` at ${receiptStore}` : ""}.{" "}
+            Buy on SlashCart&apos;s recommended stores for{" "}
+            <span className="text-[#e2e8f0] font-semibold">${receiptRecommendedTotal.toFixed(2)}</span>.
+          </p>
+          {totalReceiptSavings > 0 && (
+            <p className="text-[#22c55e] text-sm font-semibold">
+              Save ${totalReceiptSavings.toFixed(2)} on your next shop
+            </p>
+          )}
+        </div>
+      ) : showSplitBanner ? (
         <div className="mb-4 rounded-xl border border-[#1e3050] bg-[#0a1628] px-4 py-3 flex items-start gap-2.5">
           <span className="text-base mt-0.5 shrink-0">💡</span>
           <p className="text-[#e2e8f0] text-sm leading-snug">
             We split your cart across stores to get the best unit price on each item.
           </p>
         </div>
-      )}
+      ) : null}
 
       {allLoaded && totalAnnualSavings > 0 && (
         <div className="mb-6 rounded-xl bg-[#22c55e]/10 border border-[#22c55e]/30 px-4 py-4">
@@ -528,6 +589,7 @@ export default function ResultsPage() {
                 onSelect={(store) => setStoreSelections((prev) => ({ ...prev, [i]: store }))}
                 bulkSelected={bulkSelections[i] ?? "single"}
                 onBulkToggle={(v) => setBulkSelections((prev) => ({ ...prev, [i]: v }))}
+                receiptStore={receiptStore}
               />
             : <SkeletonCard key={i} {...groceryItem} />;
         })}

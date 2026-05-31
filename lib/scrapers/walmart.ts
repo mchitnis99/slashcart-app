@@ -22,7 +22,7 @@ function parsePrice(raw: unknown): number | null {
   return null;
 }
 
-export async function scrapeWalmartPrice(itemName: string): Promise<WalmartResult | null> {
+export async function scrapeWalmartPrice(itemName: string, pricePaid?: number): Promise<WalmartResult | null> {
   const apiKey = process.env.SCRAPERAPI_KEY ?? "";
   const url =
     `https://api.scraperapi.com/structured/walmart/search` +
@@ -61,6 +61,8 @@ export async function scrapeWalmartPrice(itemName: string): Promise<WalmartResul
   const standard: Candidate[] = [];
   const specialty: Candidate[] = [];
   const noBrand: Candidate[] = [];
+  const tooBig: Candidate[] = [];
+  const tooSmall: Candidate[] = [];
 
   for (const result of results) {
     const price = parsePrice(result.price ?? result.sale_price ?? result.primary_price);
@@ -77,6 +79,20 @@ export async function scrapeWalmartPrice(itemName: string): Promise<WalmartResul
 
     if (!passesNegativeKeywords(name, itemName, "walmart")) continue;
 
+    // Sanity check: if price is < 50% of what the user paid, it's likely a travel/mini size
+    if (pricePaid && price < pricePaid * 0.50) {
+      console.log(`[walmart] [TOO-SMALL] "${name}" @ $${price} (pricePaid=$${pricePaid}, <50%) (query: "${itemName}")`);
+      tooSmall.push({ name, price, url: resultUrl });
+      continue;
+    }
+
+    // Sanity check: if price is > 300% of what the user paid, it's likely a multi-pack or bulk
+    if (pricePaid && price > pricePaid * 3.00) {
+      console.log(`[walmart] [TOO-BIG] "${name}" @ $${price} (pricePaid=$${pricePaid}, >300%) (query: "${itemName}")`);
+      tooBig.push({ name, price, url: resultUrl });
+      continue;
+    }
+
     const brandOk = passesBrandCheck(name, brands);
     const special = isSpecialty(name, itemName);
     const label = !brandOk ? "BRAND-SKIP" : special ? "SPECIALTY" : "PASS";
@@ -87,14 +103,18 @@ export async function scrapeWalmartPrice(itemName: string): Promise<WalmartResul
     else              standard.push({ name, price, url: resultUrl });
   }
 
-  // Pick cheapest: standard → specialty → noBrand
-  const pool = standard.length > 0 ? standard : specialty.length > 0 ? specialty : noBrand;
+  // Pick cheapest: standard → specialty → noBrand → tooBig → tooSmall
+  const pool = standard.length > 0 ? standard
+    : specialty.length > 0 ? specialty
+    : noBrand.length > 0 ? noBrand
+    : tooBig.length > 0 ? tooBig
+    : tooSmall;
   if (pool.length === 0) {
     console.error(`[walmart] No relevant priced results for "${itemName}". Response:`, JSON.stringify(data).slice(0, 500));
     return null;
   }
 
   const best = pool.reduce((a, b) => (b.price < a.price ? b : a));
-  console.log(`[walmart] Selected: "${best.name}" @ $${best.price} (from ${standard.length} standard, ${specialty.length} specialty, ${noBrand.length} no-brand)`);
+  console.log(`[walmart] Selected: "${best.name}" @ $${best.price} (from ${standard.length} standard, ${specialty.length} specialty, ${noBrand.length} no-brand, ${tooBig.length} too-big, ${tooSmall.length} too-small)`);
   return { name: best.name, price: best.price, inStock: true, url: best.url };
 }

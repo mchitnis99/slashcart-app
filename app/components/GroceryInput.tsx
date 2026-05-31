@@ -78,9 +78,11 @@ export default function GroceryInput() {
         throw new Error(data.error ?? "Failed to parse grocery list.");
       }
 
-      const { items, excluded_items } = await res.json();
+      const { items, excluded_items, receipt_total, receipt_store } = await res.json();
       sessionStorage.setItem("slashcart_items", JSON.stringify(items));
       sessionStorage.setItem("slashcart_excluded", JSON.stringify(excluded_items ?? []));
+      sessionStorage.setItem("slashcart_receipt_total", receipt_total != null ? String(receipt_total) : "");
+      sessionStorage.setItem("slashcart_receipt_store", receipt_store ?? "");
 
       router.push("/results");
     } catch (err) {

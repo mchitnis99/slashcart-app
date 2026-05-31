@@ -8,6 +8,7 @@ type GroceryItem = {
   name: string;
   quantity: number;
   unit: string;
+  pricePaid?: number | null;
 };
 
 type StoreResult = {
@@ -61,10 +62,10 @@ function toAmazonStoreResult(raw: AmazonRaw, sizeMismatch: boolean): AmazonStore
   return { ...raw, annualSavings: sizeMismatch ? null : computeAnnualSavings(raw) };
 }
 
-async function tryAmazonScrape(itemName: string): Promise<AmazonRaw | null> {
+async function tryAmazonScrape(itemName: string, pricePaid?: number | null): Promise<AmazonRaw | null> {
   try {
     const { scrapeAmazonPrice } = await import("@/lib/scrapers/amazon");
-    const result = await scrapeAmazonPrice(itemName);
+    const result = await scrapeAmazonPrice(itemName, pricePaid ?? undefined);
     if (!result) return null;
     return {
       price: result.price,
@@ -81,10 +82,10 @@ async function tryAmazonScrape(itemName: string): Promise<AmazonRaw | null> {
   }
 }
 
-async function tryWalmartScrape(itemName: string): Promise<StoreResult | null> {
+async function tryWalmartScrape(itemName: string, pricePaid?: number | null): Promise<StoreResult | null> {
   try {
     const { scrapeWalmartPrice } = await import("@/lib/scrapers/walmart");
-    const result = await scrapeWalmartPrice(itemName);
+    const result = await scrapeWalmartPrice(itemName, pricePaid ?? undefined);
     if (!result) return null;
     return { price: result.price, productName: result.name, url: result.url };
   } catch (err) {
@@ -141,8 +142,8 @@ export async function POST(request: Request) {
 
     console.log(`[cache] MISS: "${cacheKey}"`);
     const [amazon, walmart] = await Promise.all([
-      tryAmazonScrape(item.name),
-      tryWalmartScrape(item.name),
+      tryAmazonScrape(item.name, item.pricePaid),
+      tryWalmartScrape(item.name, item.pricePaid),
     ]);
 
     if (amazon) console.log(`SCRAPED amazon: ${item.name} → $${amazon.price} (asin: ${amazon.asin})`);
