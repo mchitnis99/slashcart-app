@@ -15,14 +15,14 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL("https://app.slashcart.app"),
   title: "SlashCart",
-  description: "Compare grocery prices across Amazon and Walmart",
+  description: "Paste your grocery list or upload a receipt — we find the best unit price across Amazon and Walmart and build your cart automatically.",
   icons: {
     icon: "/slashcart-logo.svg",
   },
   openGraph: {
     title: "SlashCart — Slash Your Grocery Bill",
     description:
-      "Compare grocery prices across Amazon and Walmart instantly. Upload your list or receipt and find the best deals.",
+      "Paste your grocery list or upload a receipt — we find the best unit price across Amazon and Walmart and build your cart automatically.",
     url: "https://app.slashcart.app",
     siteName: "SlashCart",
     images: [{ url: "/og-image.png", width: 1200, height: 630 }],
@@ -32,7 +32,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "SlashCart — Slash Your Grocery Bill",
     description:
-      "Compare grocery prices across Amazon and Walmart instantly.",
+      "Paste your grocery list or upload a receipt — we find the best unit price across Amazon and Walmart and build your cart automatically.",
     images: ["/og-image.png"],
   },
 };
