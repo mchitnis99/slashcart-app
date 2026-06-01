@@ -151,8 +151,13 @@ export async function POST(request: Request) {
     if (walmart) console.log(`SCRAPED walmart: ${item.name} → $${walmart.price}`);
     else console.log(`UNAVAILABLE walmart: ${item.name}`);
 
-    const writeOk = await setCachedPrice(cacheKey, { amazon, walmart });
-    console.log(`[cache] write "${cacheKey}": ${writeOk ? "ok" : "FAILED"}`);
+    const hasPrice = (amazon?.price ?? null) !== null || (walmart?.price ?? null) !== null;
+    if (hasPrice) {
+      const writeOk = await setCachedPrice(cacheKey, { amazon, walmart });
+      console.log(`[cache] write "${cacheKey}": ${writeOk ? "ok" : "FAILED"}`);
+    } else {
+      console.log(`[cache] skip write "${cacheKey}": no prices found on either store`);
+    }
 
     const amazonSize = amazon ? parseSize(amazon.productName, "Amazon") : null;
     console.log("[parseSize]", amazon?.productName, "→", amazonSize?.quantity, amazonSize?.unit);

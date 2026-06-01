@@ -76,6 +76,11 @@ const ITEMS = [
 
 const BATCH_SIZE = 5;
 
+/** Mirror of normalizeCacheKey in app/api/search-prices/route.ts */
+function normalizeCacheKey(name: string): string {
+  return name.trim().toLowerCase().split(/\s+/).sort().join(" ");
+}
+
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -107,7 +112,8 @@ async function seedBatch(batch: typeof ITEMS) {
       try {
         const msg = JSON.parse(line) as { type: string; index?: number; data?: { name: string } };
         if (msg.type === "item" && msg.data) {
-          console.log(`  ✓ ${batch[msg.index!]?.name} → "${msg.data.name}"`);
+          const itemName = batch[msg.index!]?.name ?? "";
+          console.log(`  ✓ "${itemName}" (key: "${normalizeCacheKey(itemName)}") → "${msg.data.name}"`);
         }
       } catch { /* ignore malformed lines */ }
     }
