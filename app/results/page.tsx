@@ -500,6 +500,12 @@ export default function ResultsPage() {
 
   // Cart total matches exactly what's shown in the checkout breakdown
   const slashcartTotal = round(amazonSelectedTotal + walmartSelectedTotal);
+  const foundCount = allLoaded
+    ? (pricedItems.filter(Boolean) as PricedItem[]).filter(
+        (item) => item.amazon.price !== null || item.walmart.price !== null
+      ).length
+    : 0;
+  const totalCount = groceryItems.length;
 
   // Only count pricePaid for items where we found at least one price — exclude phantom savings
   // from items both stores couldn't find.
@@ -551,6 +557,7 @@ export default function ResultsPage() {
               <div>
                 <p className="text-[#94a3b8] text-xs uppercase tracking-wide font-medium">Save on your next shop</p>
                 <p className="text-[#22c55e] text-4xl font-bold leading-tight">${totalReceiptSavings.toFixed(2)}</p>
+                <p className="text-white/30 text-xs mt-1">{foundCount} of {totalCount} items found</p>
               </div>
             </div>
           ) : (
