@@ -527,6 +527,15 @@ export default function ResultsPage() {
     ? round(savingsReceiptTotal - savingsSlashcartTotal)
     : 0;
 
+  const pantryReceiptTotal = allLoaded
+    ? round((pricedItems.filter(Boolean) as PricedItem[]).reduce(
+        (s, item) => s + (item.pricePaid && item.pricePaid > 0 ? item.pricePaid : 0), 0
+      ))
+    : 0;
+  const savingsPct = pantryReceiptTotal > 0
+    ? Math.round((totalReceiptSavings / pantryReceiptTotal) * 100)
+    : 0;
+
   if (allLoaded) {
     console.log('[savings] receiptTotal:', receiptTotal);
     console.log('[savings] savingsReceiptTotal:', savingsReceiptTotal);
@@ -555,27 +564,24 @@ export default function ResultsPage() {
 
       {allLoaded && receiptTotal !== null ? (
         <div className="mb-5 rounded-xl bg-[#0d2e1a] border border-[#22c55e]/40 px-5 py-5">
-          {totalReceiptSavings > 0 && (
-            <>
-              <p className="text-[#94a3b8] text-sm mb-1">
-                You paid{" "}
-                <span className="text-[#e2e8f0] font-semibold">${savingsReceiptTotal.toFixed(2)}</span>
-                {" "}on items we beat
-              </p>
-              <p className="text-[#94a3b8] text-sm mb-1">
-                Buy on SlashCart&apos;s recommended stores for{" "}
-                <span className="text-[#e2e8f0] font-semibold">${savingsSlashcartTotal.toFixed(2)}</span>
-              </p>
-            </>
-          )}
-          {receiptTotal !== null && (
-            <p className="text-white/30 text-xs mb-3">
-              (${receiptTotal.toFixed(2)} total receipt
-              {receiptStore ? ` at ${receiptStore}` : ""} — only items where we found a better price shown above)
-            </p>
-          )}
+          <p className="text-[#94a3b8] text-sm leading-relaxed mb-4">
+            You spent{" "}
+            <span className="text-[#e2e8f0] font-semibold">${pantryReceiptTotal.toFixed(2)}</span>
+            {" "}on{" "}
+            <span className="text-[#e2e8f0] font-semibold">{totalCount}</span>
+            {" "}pantry items
+            {receiptStore ? <> at <span className="text-[#e2e8f0] font-semibold">{receiptStore}</span></> : ""}.
+            {totalReceiptSavings > 0 && (
+              <>{" "}We save you{" "}
+                <span className="text-[#22c55e] font-semibold">{savingsPct}%</span>
+                {" "}on{" "}
+                <span className="text-[#e2e8f0] font-semibold">{savingsEntries.length}</span>
+                {" "}of them.
+              </>
+            )}
+          </p>
           {totalReceiptSavings > 0 ? (
-            <div className="flex items-center gap-3 mt-3">
+            <div className="flex items-center gap-3">
               <span className="text-2xl shrink-0">💰</span>
               <div>
                 <p className="text-[#94a3b8] text-xs uppercase tracking-wide font-medium">Save on your next shop</p>
@@ -584,8 +590,13 @@ export default function ResultsPage() {
               </div>
             </div>
           ) : (
-            <p className="text-[#22c55e] text-sm font-medium mt-3">✓ You got good prices on all these items</p>
+            <p className="text-[#22c55e] text-sm font-medium">✓ You got good prices on all these items</p>
           )}
+          <p className="text-white/30 text-xs mt-4">
+            ${receiptTotal.toFixed(2)} total receipt
+            {receiptStore ? ` at ${receiptStore}` : ""}
+            {" "}— fresh items and unavailable items excluded from savings
+          </p>
         </div>
       ) : showSplitBanner ? (
         <div className="mb-4 rounded-xl border border-[#1e3050] bg-[#0a1628] px-4 py-3 flex items-start gap-2.5">

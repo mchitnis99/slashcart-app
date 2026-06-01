@@ -43,6 +43,7 @@ Brand name rules — follow these exactly:
 6. When in doubt about a brand name, omit it entirely and return only the generic product name. It is always better to search for "old fashioned oats" than "Bob's Red Mill old fashioned oats" if Bob's Red Mill is not clearly printed next to that item on the receipt. Generic searches return better results than wrong brand searches.
 7. The word "butter" should only appear in an item name if the product is literally butter or a butter substitute. Do not append "butter" to oil products — "avocado oil" is not "avocado oil butter".
 8. If an item has a negative price (from a coupon, discount, rebate, or return line on the receipt), set pricePaid to null — never use negative values for pricePaid.
+9. If the same product appears multiple times on a receipt (e.g. as a purchase and then a coupon/discount for the same item), only include it once — use the net price if available (purchase price minus discount), otherwise use the purchase price. Do not create separate line items for coupons, discounts, or returns of items already listed.
 9. When an item is a store brand (e.g. "ShopRite oats", "Kirkland olive oil", "Great Value flour", "Trader Joe's granola"), strip the store brand name and return only the generic product name (e.g. "old fashioned oats", "olive oil", "all purpose flour", "granola"). We will find the best equivalent across Amazon and Walmart — a generic search returns better results than a store-brand-specific search.
 
 Return a JSON object with:
