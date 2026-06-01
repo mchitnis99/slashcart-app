@@ -38,7 +38,7 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">
     x="${W / 2}" y="${LOGO_Y + LOGO_H + 52}"
     font-family="'Helvetica Neue', Arial, sans-serif" font-size="28" font-weight="400"
     fill="#94a3b8" text-anchor="middle" letter-spacing="0.5"
-  >Compare grocery prices across Amazon &amp; Walmart instantly</text>
+  >Upload your list. Best unit prices. Cart built. Done.</text>
 </svg>`;
 
 const buf = Buffer.from(svg);
