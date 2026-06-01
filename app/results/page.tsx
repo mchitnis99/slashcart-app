@@ -564,29 +564,32 @@ export default function ResultsPage() {
 
       {allLoaded && receiptTotal !== null ? (
         <div className="mb-5 rounded-xl bg-[#0d2e1a] border border-[#22c55e]/40 px-5 py-5">
-          <p className="text-[#94a3b8] text-sm leading-relaxed mb-4">
-            You spent{" "}
-            <span className="text-[#e2e8f0] font-semibold">${pantryReceiptTotal.toFixed(2)}</span>
-            {" "}on{" "}
-            <span className="text-[#e2e8f0] font-semibold">{totalCount}</span>
-            {" "}pantry items
-            {receiptStore ? <> at <span className="text-[#e2e8f0] font-semibold">{receiptStore}</span></> : ""}.
+          <div className="mb-4 space-y-1">
+            <p className="text-[#94a3b8] text-sm">
+              You spent{" "}
+              <span className="text-[#e2e8f0] font-semibold">${pantryReceiptTotal.toFixed(2)}</span>
+              {" "}on{" "}
+              <span className="text-[#e2e8f0] font-semibold">{totalCount}</span>
+              {" "}pantry items
+              {receiptStore ? <> at <span className="text-[#e2e8f0] font-semibold">{receiptStore}</span></> : ""}.
+            </p>
             {totalReceiptSavings > 0 && (
-              <>{" "}We save you{" "}
-                <span className="text-[#22c55e] font-semibold">{savingsPct}%</span>
-                {" "}on{" "}
+              <p className="text-[#94a3b8] text-sm">
+                We found{" "}
+                <span className="text-[#22c55e] font-semibold">${totalReceiptSavings.toFixed(2)}</span>
+                {" "}in savings on{" "}
                 <span className="text-[#e2e8f0] font-semibold">{savingsEntries.length}</span>
-                {" "}of them.
-              </>
+                {" "}of them —{" "}
+                <span className="text-[#22c55e] font-semibold">{savingsPct}% back</span>.
+              </p>
             )}
-          </p>
+          </div>
           {totalReceiptSavings > 0 ? (
             <div className="flex items-center gap-3">
               <span className="text-2xl shrink-0">💰</span>
               <div>
                 <p className="text-[#94a3b8] text-xs uppercase tracking-wide font-medium">Save on your next shop</p>
                 <p className="text-[#22c55e] text-4xl font-bold leading-tight">${totalReceiptSavings.toFixed(2)}</p>
-                <p className="text-white/30 text-xs mt-1">{foundCount} of {totalCount} items found</p>
               </div>
             </div>
           ) : (
@@ -595,7 +598,7 @@ export default function ResultsPage() {
           <p className="text-white/30 text-xs mt-4">
             ${receiptTotal.toFixed(2)} total receipt
             {receiptStore ? ` at ${receiptStore}` : ""}
-            {" "}— fresh produce excluded
+            {" "}— fresh items and items not found online excluded
           </p>
         </div>
       ) : showSplitBanner ? (
