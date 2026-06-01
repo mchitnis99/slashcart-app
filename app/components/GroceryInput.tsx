@@ -113,7 +113,7 @@ export default function GroceryInput() {
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder="Paste or type your grocery list here (staples, not fresh produce)..."
+          placeholder="Paste or type your full grocery list — we'll find savings on pantry staples and packaged goods"
           rows={8}
           disabled={loading}
           className="w-full rounded-xl border border-slate-600 bg-[#0f1f3d] text-[#e2e8f0] placeholder-[#475569] p-4 text-sm leading-relaxed resize-none focus:outline-none focus:ring-2 focus:ring-[#22c55e] transition disabled:opacity-50 disabled:cursor-not-allowed"
