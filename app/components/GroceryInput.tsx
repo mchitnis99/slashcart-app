@@ -118,6 +118,9 @@ export default function GroceryInput() {
           disabled={loading}
           className="w-full rounded-xl border border-slate-600 bg-[#0f1f3d] text-[#e2e8f0] placeholder-[#475569] p-4 text-sm leading-relaxed resize-none focus:outline-none focus:ring-2 focus:ring-[#22c55e] transition disabled:opacity-50 disabled:cursor-not-allowed"
         />
+        <p className="mt-1.5 text-xs text-white/40 px-1">
+          Works best with pantry staples, packaged goods, and household items — not fresh produce like fruits, vegetables, or meat.
+        </p>
       </div>
 
       <div className="flex items-center gap-3">

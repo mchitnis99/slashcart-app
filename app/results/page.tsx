@@ -435,6 +435,7 @@ export default function ResultsPage() {
 
   if (loading) return <LoadingState />;
   if (error) return <ErrorState message={error} />;
+  if (totals !== null && groceryItems.length === 0) return <EmptyState />;
 
   const allLoaded = totals !== null;
   const round = (n: number) => Math.round(n * 100) / 100;
@@ -682,6 +683,28 @@ function ErrorState({ message }: { message: string }) {
         className="text-[#22c55e] text-sm border border-[#22c55e]/30 rounded-lg px-4 py-2 hover:bg-[#22c55e]/10 transition"
       >
         ← Go back
+      </Link>
+    </main>
+  );
+}
+
+function EmptyState() {
+  return (
+    <main className="flex flex-col flex-1 items-center justify-center gap-5 px-6 text-center">
+      <p className="text-4xl">🛒</p>
+      <div className="space-y-2 max-w-sm">
+        <h2 className="text-xl font-bold text-[#e2e8f0]">No pantry staples found</h2>
+        <p className="text-[#94a3b8] text-sm leading-relaxed">
+          SlashCart compares prices on packaged goods and pantry staples. Fresh items like produce,
+          meat, and dairy aren&apos;t included. Try adding items like flour, olive oil, toothpaste,
+          or paper towels.
+        </p>
+      </div>
+      <Link
+        href="/"
+        className="rounded-xl bg-[#22c55e] hover:bg-[#16a34a] text-[#0b1426] font-semibold text-sm px-6 py-3 transition-colors"
+      >
+        Try again
       </Link>
     </main>
   );
