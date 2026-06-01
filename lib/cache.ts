@@ -47,7 +47,7 @@ export async function setCachedPrice(
 ): Promise<boolean> {
   try {
     const now = Date.now();
-    const expiresAt = new Date(now + 24 * 60 * 60 * 1000).toISOString();
+    const expiresAt = new Date(now + 7 * 24 * 60 * 60 * 1000).toISOString();
     const cachedAt = new Date(now).toISOString();
     const { error } = await supabase.from("price_cache").upsert(
       { search_term: searchTerm, data, expires_at: expiresAt, cached_at: cachedAt },

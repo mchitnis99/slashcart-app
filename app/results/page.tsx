@@ -507,19 +507,32 @@ export default function ResultsPage() {
     : 0;
   const totalCount = groceryItems.length;
 
-  // Only count pricePaid for items where we found at least one price — exclude phantom savings
-  // from items both stores couldn't find.
-  const comparableReceiptTotal = receiptTotal !== null && allLoaded
-    ? round(receiptTotal - (pricedItems.filter(Boolean) as PricedItem[]).reduce((s, item) => {
-        if (item.pricePaid == null) return s;
-        if (item.amazon.price === null && item.walmart.price === null) return s + item.pricePaid;
-        return s;
-      }, 0))
-    : receiptTotal;
+  // Savings-only totals: include only items where our recommended price beats pricePaid.
+  // Items where recPrice >= pricePaid ("Good price ✓") are excluded from both sides
+  // so they don't suppress the savings figure.
+  const savingsEntries = allLoaded
+    ? (pricedItems.filter(Boolean) as PricedItem[]).filter((item) => {
+        if (!item.pricePaid || item.pricePaid <= 0) return false;
+        const { amazonCheapest } = getWinners(item);
+        const recPrice = (amazonCheapest ? item.amazon.price : item.walmart.price) ?? null;
+        return recPrice !== null && recPrice < item.pricePaid;
+      })
+    : [];
+  const savingsReceiptTotal = round(savingsEntries.reduce((s, item) => s + (item.pricePaid ?? 0), 0));
+  const savingsSlashcartTotal = round(savingsEntries.reduce((s, item) => {
+    const { amazonCheapest } = getWinners(item);
+    return s + ((amazonCheapest ? item.amazon.price : item.walmart.price) ?? 0);
+  }, 0));
+  const totalReceiptSavings = receiptTotal !== null && savingsEntries.length > 0
+    ? round(savingsReceiptTotal - savingsSlashcartTotal)
+    : 0;
 
-  const totalReceiptSavings = comparableReceiptTotal !== null ? round(comparableReceiptTotal - slashcartTotal) : 0;
-  if (receiptTotal !== null) {
-    console.log(`[receipt-savings] receiptTotal=$${receiptTotal} comparableReceiptTotal=$${comparableReceiptTotal} slashcartTotal=$${slashcartTotal} savings=$${totalReceiptSavings}`);
+  if (allLoaded) {
+    console.log('[savings] receiptTotal:', receiptTotal);
+    console.log('[savings] savingsReceiptTotal:', savingsReceiptTotal);
+    console.log('[savings] savingsSlashcartTotal:', savingsSlashcartTotal);
+    console.log('[savings] totalReceiptSavings:', totalReceiptSavings);
+    console.log('[savings] savingsEntries count:', savingsEntries.length);
   }
 
   return (
@@ -542,17 +555,27 @@ export default function ResultsPage() {
 
       {allLoaded && receiptTotal !== null ? (
         <div className="mb-5 rounded-xl bg-[#0d2e1a] border border-[#22c55e]/40 px-5 py-5">
-          <p className="text-[#94a3b8] text-sm mb-1">
-            You paid{" "}
-            <span className="text-[#e2e8f0] font-semibold">${receiptTotal.toFixed(2)}</span>
-            {receiptStore ? ` at ${receiptStore}` : ""}
-          </p>
-          <p className="text-[#94a3b8] text-sm mb-4">
-            Buy on SlashCart&apos;s recommended stores for{" "}
-            <span className="text-[#e2e8f0] font-semibold">${slashcartTotal.toFixed(2)}</span>
-          </p>
+          {totalReceiptSavings > 0 && (
+            <>
+              <p className="text-[#94a3b8] text-sm mb-1">
+                You paid{" "}
+                <span className="text-[#e2e8f0] font-semibold">${savingsReceiptTotal.toFixed(2)}</span>
+                {" "}on items we beat
+              </p>
+              <p className="text-[#94a3b8] text-sm mb-1">
+                Buy on SlashCart&apos;s recommended stores for{" "}
+                <span className="text-[#e2e8f0] font-semibold">${savingsSlashcartTotal.toFixed(2)}</span>
+              </p>
+            </>
+          )}
+          {receiptTotal !== null && (
+            <p className="text-white/30 text-xs mb-3">
+              (${receiptTotal.toFixed(2)} total receipt
+              {receiptStore ? ` at ${receiptStore}` : ""} — only items where we found a better price shown above)
+            </p>
+          )}
           {totalReceiptSavings > 0 ? (
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 mt-3">
               <span className="text-2xl shrink-0">💰</span>
               <div>
                 <p className="text-[#94a3b8] text-xs uppercase tracking-wide font-medium">Save on your next shop</p>
@@ -561,7 +584,7 @@ export default function ResultsPage() {
               </div>
             </div>
           ) : (
-            <p className="text-[#22c55e] text-sm font-medium">✓ You got good prices on all these items</p>
+            <p className="text-[#22c55e] text-sm font-medium mt-3">✓ You got good prices on all these items</p>
           )}
         </div>
       ) : showSplitBanner ? (
@@ -625,19 +648,9 @@ export default function ResultsPage() {
           )}
 
           {receiptTotal !== null && totalReceiptSavings > 0 && (
-            <div className="rounded-xl bg-[#0d2e1a] border border-[#22c55e]/40 px-4 py-4 flex items-center justify-between gap-4 mb-4">
-              <div className="min-w-0">
-                <p className="text-[#94a3b8] text-xs truncate">
-                  vs. ${receiptTotal.toFixed(2)}{receiptStore ? ` at ${receiptStore}` : ""}
-                </p>
-                <p className="text-[#e2e8f0] text-sm font-medium">
-                  Buy on SlashCart for ${slashcartTotal.toFixed(2)}
-                </p>
-              </div>
-              <div className="text-right shrink-0">
-                <p className="text-[#94a3b8] text-xs">you save</p>
-                <p className="text-[#22c55e] text-2xl font-bold leading-tight">${totalReceiptSavings.toFixed(2)}</p>
-              </div>
+            <div className="rounded-xl bg-[#0d2e1a] border border-[#22c55e]/40 px-4 py-3 flex items-center justify-between gap-4 mb-4">
+              <p className="text-[#94a3b8] text-sm">You save on your next shop</p>
+              <p className="text-[#22c55e] text-2xl font-bold leading-tight shrink-0">${totalReceiptSavings.toFixed(2)}</p>
             </div>
           )}
 
