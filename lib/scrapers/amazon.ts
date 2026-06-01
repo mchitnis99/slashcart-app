@@ -4,6 +4,7 @@ import {
   extractBrands,
   passesBrandCheck,
   passesNegativeKeywords,
+  getCategoryMinPrice,
 } from "@/lib/scrapers/filters";
 
 export type AmazonResult = {
@@ -72,9 +73,10 @@ export async function scrapeAmazonPrice(itemName: string, pricePaid?: number): P
   const data = json as Record<string, unknown>;
   const results = (data.results ?? data.organic_results ?? []) as Record<string, unknown>[];
 
-  console.log(`[amazon] Got ${results.length} results for "${itemName}"`);
+  console.log(`[amazon] Got ${results.length} results for "${itemName}" (pricePaid=${pricePaid ?? "none"})`);
 
   const brands = extractBrands(itemName);
+  const categoryMin = getCategoryMinPrice(itemName);
 
   type Candidate = { result: Record<string, unknown>; price: number; asin: string | null };
   const standard: Candidate[] = [];
@@ -100,7 +102,14 @@ export async function scrapeAmazonPrice(itemName: string, pricePaid?: number): P
 
     // Sanity check: if price is < 50% of what the user paid, it's likely a travel/mini size
     if (pricePaid && price < pricePaid * 0.50) {
-      console.log(`[amazon] [TOO-SMALL] "${title}" @ $${price} (pricePaid=$${pricePaid}, <50%) (query: "${itemName}")`);
+      console.log(`[amazon] [TOO-SMALL] "${title}" @ $${price} (pricePaid=$${pricePaid}, ${Math.round(price/pricePaid*100)}% of paid) (query: "${itemName}")`);
+      tooSmall.push({ result, price, asin: toStringOrNull(result.asin ?? result.product_id) });
+      continue;
+    }
+
+    // Category price floor: catches travel sizes even without pricePaid
+    if (categoryMin !== null && price < categoryMin) {
+      console.log(`[amazon] [TOO-SMALL] "${title}" @ $${price} (category floor $${categoryMin}) (query: "${itemName}")`);
       tooSmall.push({ result, price, asin: toStringOrNull(result.asin ?? result.product_id) });
       continue;
     }

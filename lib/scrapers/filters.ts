@@ -15,11 +15,25 @@ export const SPECIALTY_WORDS = [
 // Hard-exclude results containing these subtype words when the query
 // contains the category key but NOT the subtype word.
 const NEGATIVE_KEYWORDS: Record<string, string[]> = {
-  flour:  ["semolina", "almond", "coconut", "durum", "rye", "oat", "cassava", "tapioca", "arrowroot", "chickpea"],
-  milk:   ["almond", "oat", "soy", "coconut", "cashew"],
-  butter: ["almond", "peanut", "cashew", "sunflower"],
-  sugar:  ["stevia", "splenda", "monk fruit", "erythritol"],
+  flour:      ["semolina", "almond", "coconut", "durum", "rye", "oat", "cassava", "tapioca", "arrowroot", "chickpea"],
+  milk:       ["almond", "oat", "soy", "coconut", "cashew"],
+  butter:     ["almond", "peanut", "cashew", "sunflower"],
+  sugar:      ["stevia", "splenda", "monk fruit", "erythritol"],
+  shampoo:    ["travel size", "travel", "mini"],
+  conditioner:["travel size", "travel", "mini"],
 };
+
+// Minimum acceptable price per category — catches travel/trial sizes when pricePaid unavailable.
+const CATEGORY_MIN_PRICES: { pattern: RegExp; minPrice: number }[] = [
+  { pattern: /\b(shampoo|conditioner)\b/i, minPrice: 4 },
+];
+
+export function getCategoryMinPrice(query: string): number | null {
+  for (const { pattern, minPrice } of CATEGORY_MIN_PRICES) {
+    if (pattern.test(query)) return minPrice;
+  }
+  return null;
+}
 
 // When a specific descriptor from this table appears in the query, the corresponding
 // word must also appear in the product name. Each entry is [queryPhrase, requiredInName].

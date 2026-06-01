@@ -4,6 +4,7 @@ import {
   extractBrands,
   passesBrandCheck,
   passesNegativeKeywords,
+  getCategoryMinPrice,
 } from "@/lib/scrapers/filters";
 
 export type WalmartResult = {
@@ -53,9 +54,10 @@ export async function scrapeWalmartPrice(itemName: string, pricePaid?: number): 
   const data = json as Record<string, unknown>;
   const results = (data.results ?? data.organic_results ?? data.items ?? []) as Record<string, unknown>[];
 
-  console.log(`[walmart] Got ${results.length} results for "${itemName}"`);
+  console.log(`[walmart] Got ${results.length} results for "${itemName}" (pricePaid=${pricePaid ?? "none"})`);
 
   const brands = extractBrands(itemName);
+  const categoryMin = getCategoryMinPrice(itemName);
 
   type Candidate = { name: string; price: number; url: string | null };
   const standard: Candidate[] = [];
@@ -81,7 +83,14 @@ export async function scrapeWalmartPrice(itemName: string, pricePaid?: number): 
 
     // Sanity check: if price is < 50% of what the user paid, it's likely a travel/mini size
     if (pricePaid && price < pricePaid * 0.50) {
-      console.log(`[walmart] [TOO-SMALL] "${name}" @ $${price} (pricePaid=$${pricePaid}, <50%) (query: "${itemName}")`);
+      console.log(`[walmart] [TOO-SMALL] "${name}" @ $${price} (pricePaid=$${pricePaid}, ${Math.round(price/pricePaid*100)}% of paid) (query: "${itemName}")`);
+      tooSmall.push({ name, price, url: resultUrl });
+      continue;
+    }
+
+    // Category price floor: catches travel sizes even without pricePaid
+    if (categoryMin !== null && price < categoryMin) {
+      console.log(`[walmart] [TOO-SMALL] "${name}" @ $${price} (category floor $${categoryMin}) (query: "${itemName}")`);
       tooSmall.push({ name, price, url: resultUrl });
       continue;
     }
