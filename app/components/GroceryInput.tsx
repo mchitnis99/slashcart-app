@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 export default function GroceryInput() {
@@ -12,7 +12,15 @@ export default function GroceryInput() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [showHangTight, setShowHangTight] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const hangTightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (hangTightTimerRef.current) clearTimeout(hangTightTimerRef.current);
+    };
+  }, []);
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -57,6 +65,9 @@ export default function GroceryInput() {
     }
     setError(null);
     setLoading(true);
+    setShowHangTight(false);
+
+    hangTightTimerRef.current = setTimeout(() => setShowHangTight(true), 2000);
 
     try {
       const body: Record<string, string> = { text: text.trim() };
@@ -88,9 +99,13 @@ export default function GroceryInput() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
+      if (hangTightTimerRef.current) clearTimeout(hangTightTimerRef.current);
       setLoading(false);
+      setShowHangTight(false);
     }
   }
+
+  const loadingLabel = imageFile ? "Reading your receipt…" : "Reading your list…";
 
   return (
     <form onSubmit={handleSubmit} className="w-full max-w-2xl mx-auto space-y-4">
@@ -100,7 +115,8 @@ export default function GroceryInput() {
           onChange={(e) => setText(e.target.value)}
           placeholder="Paste or type your grocery list here..."
           rows={8}
-          className="w-full rounded-xl border border-slate-600 bg-[#0f1f3d] text-[#e2e8f0] placeholder-[#475569] p-4 text-sm leading-relaxed resize-none focus:outline-none focus:ring-2 focus:ring-[#22c55e] transition"
+          disabled={loading}
+          className="w-full rounded-xl border border-slate-600 bg-[#0f1f3d] text-[#e2e8f0] placeholder-[#475569] p-4 text-sm leading-relaxed resize-none focus:outline-none focus:ring-2 focus:ring-[#22c55e] transition disabled:opacity-50 disabled:cursor-not-allowed"
         />
       </div>
 
@@ -117,23 +133,26 @@ export default function GroceryInput() {
             alt="Grocery list preview"
             className="w-full max-h-56 object-contain"
           />
-          <button
-            type="button"
-            onClick={removeImage}
-            className="absolute top-2 right-2 bg-[#0b1426]/80 hover:bg-red-600 text-white rounded-full w-7 h-7 flex items-center justify-center text-xs transition"
-            aria-label="Remove image"
-          >
-            ✕
-          </button>
+          {!loading && (
+            <button
+              type="button"
+              onClick={removeImage}
+              className="absolute top-2 right-2 bg-[#0b1426]/80 hover:bg-red-600 text-white rounded-full w-7 h-7 flex items-center justify-center text-xs transition"
+              aria-label="Remove image"
+            >
+              ✕
+            </button>
+          )}
         </div>
       ) : (
         <button
           type="button"
-          onClick={() => fileInputRef.current?.click()}
+          onClick={() => !loading && fileInputRef.current?.click()}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
-          className={`w-full rounded-xl border border-dashed py-6 text-sm flex flex-col items-center gap-2 transition ${
+          disabled={loading}
+          className={`w-full rounded-xl border border-dashed py-6 text-sm flex flex-col items-center gap-2 transition disabled:opacity-50 disabled:cursor-not-allowed ${
             isDragging
               ? "border-[#22c55e] bg-[#0f2030] text-[#22c55e]"
               : "border-[#1e3050] bg-[#142036] hover:border-[#22c55e] hover:bg-[#0f2030] text-[#94a3b8] hover:text-[#22c55e]"
@@ -162,10 +181,26 @@ export default function GroceryInput() {
       <button
         type="submit"
         disabled={loading}
-        className="w-full py-3.5 rounded-xl bg-[#22c55e] hover:bg-[#16a34a] disabled:opacity-50 disabled:cursor-not-allowed text-[#0b1426] font-semibold text-base transition-colors"
+        className="w-full py-3.5 rounded-xl bg-[#22c55e] hover:bg-[#16a34a] disabled:opacity-80 disabled:cursor-not-allowed text-[#0b1426] font-semibold text-base transition-colors flex items-center justify-center gap-2"
       >
-        {loading ? "Finding best prices…" : "Find Best Prices →"}
+        {loading ? (
+          <>
+            <svg className="animate-spin w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z" />
+            </svg>
+            {loadingLabel}
+          </>
+        ) : (
+          "Find Best Prices →"
+        )}
       </button>
+
+      {showHangTight && (
+        <p className="text-[#475569] text-xs text-center animate-pulse">
+          This takes about 30 seconds for new items — hang tight!
+        </p>
+      )}
     </form>
   );
 }
