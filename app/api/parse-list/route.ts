@@ -42,6 +42,8 @@ Brand name rules — follow these exactly:
 5. Normalize to singular lowercase form, excluding quantity/size (e.g. "2 lbs King Arthur bread flour" → name: "King Arthur bread flour", quantity: 2, unit: "lbs").
 6. When in doubt about a brand name, omit it entirely and return only the generic product name. It is always better to search for "old fashioned oats" than "Bob's Red Mill old fashioned oats" if Bob's Red Mill is not clearly printed next to that item on the receipt. Generic searches return better results than wrong brand searches.
 7. The word "butter" should only appear in an item name if the product is literally butter or a butter substitute. Do not append "butter" to oil products — "avocado oil" is not "avocado oil butter".
+8. If an item has a negative price (from a coupon, discount, rebate, or return line on the receipt), set pricePaid to null — never use negative values for pricePaid.
+9. When an item is a store brand (e.g. "ShopRite oats", "Kirkland olive oil", "Great Value flour", "Trader Joe's granola"), strip the store brand name and return only the generic product name (e.g. "old fashioned oats", "olive oil", "all purpose flour", "granola"). We will find the best equivalent across Amazon and Walmart — a generic search returns better results than a store-brand-specific search.
 
 Return a JSON object with:
 - items: pantry_staple items only
@@ -83,7 +85,7 @@ Example output (typed list):
   try {
     const message = await client.messages.create({
       model: "claude-sonnet-4-6",
-      max_tokens: 1024,
+      max_tokens: 4000,
       system: systemPrompt,
       messages: [{ role: "user", content: userContent }],
     });
@@ -101,12 +103,36 @@ Example output (typed list):
     }
 
     type ParsedItem = { name: string; quantity: number; unit: string; pricePaid?: number | null };
-    const parsed = JSON.parse(jsonMatch[0]) as {
+    type ParsedShape = {
       items?: ParsedItem[];
       excluded_items?: ParsedItem[];
       receiptTotal?: number | null;
       receiptStore?: string | null;
     };
+
+    let parsed: ParsedShape | ParsedItem[] | null = null;
+    try {
+      parsed = JSON.parse(jsonMatch[0]) as ParsedShape | ParsedItem[];
+    } catch {
+      // JSON was truncated — extract whatever complete item objects are present
+      console.warn("[parse-list] JSON truncated, attempting partial extraction");
+      const itemMatches = jsonMatch[0].matchAll(/\{[^{}]*"name"\s*:\s*"[^"]+(?:"(?:[^{}]*"name"\s*:\s*"[^"]*)*[^{}]*)?[^{}]*\}/g);
+      const partialItems: ParsedItem[] = [];
+      for (const m of itemMatches) {
+        try {
+          const obj = JSON.parse(m[0]) as ParsedItem;
+          if (typeof obj.name === "string" && obj.name.length > 0) partialItems.push(obj);
+        } catch { /* skip malformed objects */ }
+      }
+      if (partialItems.length === 0) {
+        return Response.json(
+          { error: "Could not parse a grocery list from the input." },
+          { status: 422 }
+        );
+      }
+      console.warn(`[parse-list] Partial extraction recovered ${partialItems.length} items`);
+      parsed = partialItems;
+    }
 
     // Handle legacy array response shape gracefully
     const items = Array.isArray(parsed) ? (parsed as ParsedItem[]) : (parsed.items ?? []);

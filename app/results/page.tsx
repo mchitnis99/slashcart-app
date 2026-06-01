@@ -383,7 +383,10 @@ export default function ResultsPage() {
       return;
     }
 
-    const items: GroceryItem[] = JSON.parse(raw);
+    const items: GroceryItem[] = (JSON.parse(raw) as GroceryItem[]).map((item) => ({
+      ...item,
+      pricePaid: item.pricePaid != null && item.pricePaid > 0 ? item.pricePaid : null,
+    }));
 
     setGroceryItems(items);
     setPricedItems(new Array(items.length).fill(null));
@@ -497,9 +500,20 @@ export default function ResultsPage() {
 
   // Cart total matches exactly what's shown in the checkout breakdown
   const slashcartTotal = round(amazonSelectedTotal + walmartSelectedTotal);
-  const totalReceiptSavings = receiptTotal !== null ? round(receiptTotal - slashcartTotal) : 0;
+
+  // Only count pricePaid for items where we found at least one price — exclude phantom savings
+  // from items both stores couldn't find.
+  const comparableReceiptTotal = receiptTotal !== null && allLoaded
+    ? round(receiptTotal - (pricedItems.filter(Boolean) as PricedItem[]).reduce((s, item) => {
+        if (item.pricePaid == null) return s;
+        if (item.amazon.price === null && item.walmart.price === null) return s + item.pricePaid;
+        return s;
+      }, 0))
+    : receiptTotal;
+
+  const totalReceiptSavings = comparableReceiptTotal !== null ? round(comparableReceiptTotal - slashcartTotal) : 0;
   if (receiptTotal !== null) {
-    console.log(`[receipt-savings] receiptTotal=$${receiptTotal} slashcartTotal=$${slashcartTotal} savings=$${totalReceiptSavings}`);
+    console.log(`[receipt-savings] receiptTotal=$${receiptTotal} comparableReceiptTotal=$${comparableReceiptTotal} slashcartTotal=$${slashcartTotal} savings=$${totalReceiptSavings}`);
   }
 
   return (

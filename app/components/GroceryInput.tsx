@@ -73,9 +73,10 @@ export default function GroceryInput() {
       const body: Record<string, string> = { text: text.trim() };
 
       if (imageFile) {
-        const base64 = await fileToBase64(imageFile);
+        const compressed = await compressImage(imageFile);
+        const base64 = await fileToBase64(compressed);
         body.image = base64;
-        body.imageMediaType = imageFile.type;
+        body.imageMediaType = compressed.type;
       }
 
       const res = await fetch("/api/parse-list", {
@@ -214,5 +215,51 @@ function fileToBase64(file: File): Promise<string> {
     };
     reader.onerror = reject;
     reader.readAsDataURL(file);
+  });
+}
+
+function compressImage(file: File): Promise<File> {
+  const ONE_MB = 1024 * 1024;
+  if (file.size < ONE_MB) return Promise.resolve(file);
+
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const img = new window.Image();
+
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+
+      const MAX = 1600;
+      let { width, height } = img;
+      if (width > MAX || height > MAX) {
+        if (width >= height) {
+          height = Math.round((height * MAX) / width);
+          width = MAX;
+        } else {
+          width = Math.round((width * MAX) / height);
+          height = MAX;
+        }
+      }
+
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) { resolve(file); return; }
+      ctx.drawImage(img, 0, 0, width, height);
+
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) { resolve(file); return; }
+          const name = file.name.replace(/\.[^.]+$/, ".jpg");
+          resolve(new File([blob], name, { type: "image/jpeg" }));
+        },
+        "image/jpeg",
+        0.85
+      );
+    };
+
+    img.src = url;
   });
 }
