@@ -595,7 +595,7 @@ export default function ResultsPage() {
           <p className="text-white/30 text-xs mt-4">
             ${receiptTotal.toFixed(2)} total receipt
             {receiptStore ? ` at ${receiptStore}` : ""}
-            {" "}— fresh items and unavailable items excluded from savings
+            {" "}— fresh produce excluded
           </p>
         </div>
       ) : showSplitBanner ? (
