@@ -447,30 +447,6 @@ export default function ResultsPage() {
     return hasAmazon && hasWalmart;
   })();
 
-  // Receipt comparison: total = sum of recommended prices; savings = exact sum of per-item "Save $X" lines
-  const receiptRecommendedTotal = allLoaded
-    ? round((pricedItems.filter(Boolean) as PricedItem[]).reduce((s, item) => {
-        const { amazonCheapest } = getWinners(item);
-        return s + ((amazonCheapest ? item.amazon.price : item.walmart.price) ?? 0);
-      }, 0))
-    : 0;
-
-  let totalReceiptSavings = 0;
-  if (allLoaded) {
-    let running = 0;
-    (pricedItems.filter(Boolean) as PricedItem[]).forEach((item) => {
-      if (item.pricePaid == null) return;
-      const { amazonCheapest } = getWinners(item);
-      const recPrice = (amazonCheapest ? item.amazon.price : item.walmart.price) ?? null;
-      const saving = recPrice !== null && recPrice < item.pricePaid
-        ? round(item.pricePaid - recPrice)
-        : 0;
-      running = round(running + saving);
-      console.log(`[receipt-savings] "${item.name}" pricePaid=$${item.pricePaid} recommended=$${recPrice ?? "n/a"} saving=$${saving} running=$${running}`);
-    });
-    totalReceiptSavings = running;
-  }
-
   const excludedPreview =
     excludedItems.slice(0, 3).map((i) => i.name).join(", ") +
     (excludedItems.length > 3 ? ", etc." : "");
@@ -518,6 +494,13 @@ export default function ResultsPage() {
   const walmartSelectedTotal = round(walmartSelectedItems.reduce((s, item) => s + (item.walmart.price ?? 0), 0));
   const amazonCartUrl = buildAmazonCartUrl(amazonCartAsins);
 
+  // Cart total matches exactly what's shown in the checkout breakdown
+  const slashcartTotal = round(amazonSelectedTotal + walmartSelectedTotal);
+  const totalReceiptSavings = receiptTotal !== null ? round(receiptTotal - slashcartTotal) : 0;
+  if (receiptTotal !== null) {
+    console.log(`[receipt-savings] receiptTotal=$${receiptTotal} slashcartTotal=$${slashcartTotal} savings=$${totalReceiptSavings}`);
+  }
+
   return (
     <main className="flex flex-col flex-1 w-full overflow-x-hidden px-3 py-6 sm:px-4 sm:py-10 max-w-2xl mx-auto">
       <div className="mb-6">
@@ -545,7 +528,7 @@ export default function ResultsPage() {
           </p>
           <p className="text-[#94a3b8] text-sm mb-4">
             Buy on SlashCart&apos;s recommended stores for{" "}
-            <span className="text-[#e2e8f0] font-semibold">${receiptRecommendedTotal.toFixed(2)}</span>
+            <span className="text-[#e2e8f0] font-semibold">${slashcartTotal.toFixed(2)}</span>
           </p>
           {totalReceiptSavings > 0 ? (
             <div className="flex items-center gap-3">
@@ -626,7 +609,7 @@ export default function ResultsPage() {
                   vs. ${receiptTotal.toFixed(2)}{receiptStore ? ` at ${receiptStore}` : ""}
                 </p>
                 <p className="text-[#e2e8f0] text-sm font-medium">
-                  Buy on SlashCart for ${receiptRecommendedTotal.toFixed(2)}
+                  Buy on SlashCart for ${slashcartTotal.toFixed(2)}
                 </p>
               </div>
               <div className="text-right shrink-0">
