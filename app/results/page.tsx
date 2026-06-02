@@ -64,6 +64,19 @@ function buildAmazonCartUrl(asins: string[]): string | null {
   return `https://www.amazon.com/gp/aws/cart/add.html?${params}&tag=slashcart-20`;
 }
 
+function buildWalmartCartUrl(items: PricedItem[]): string | null {
+  const ids = items
+    .map((item) => {
+      const match = item.walmart.url?.match(/\/ip\/[^/]+\/(\d+)/);
+      return match ? match[1] : null;
+    })
+    .filter((id): id is string => id !== null);
+  if (ids.length === 0) return null;
+  const url = `https://www.walmart.com/cart/add?items=${ids.map((id) => `${id}:1`).join(",")}`;
+  console.log("[walmart-cart] built URL:", url);
+  return url;
+}
+
 function PricedItemCard({
   item,
   selected,
@@ -534,6 +547,7 @@ export default function ResultsPage() {
   );
   const walmartSelectedTotal = round(walmartSelectedItems.reduce((s, item) => s + (item.walmart.price ?? 0), 0));
   const amazonCartUrl = buildAmazonCartUrl(amazonCartAsins);
+  const walmartCartUrl = allLoaded ? (buildWalmartCartUrl(walmartSelectedItems) ?? "https://www.walmart.com/cart") : "https://www.walmart.com/cart";
 
   // Cart total matches exactly what's shown in the checkout breakdown
   const slashcartTotal = round(amazonSelectedTotal + walmartSelectedTotal);
@@ -729,7 +743,7 @@ export default function ResultsPage() {
                   {" · "}<span className="text-[#e2e8f0] font-medium">${walmartSelectedTotal.toFixed(2)}</span>
                 </p>
                 <a
-                  href="https://www.walmart.com/cart"
+                  href={walmartCartUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="w-full flex items-center justify-center rounded-xl border border-[#22c55e] text-[#22c55e] hover:bg-[#22c55e]/10 font-bold text-base px-6 py-4 transition-colors"
