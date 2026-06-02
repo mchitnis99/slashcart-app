@@ -96,8 +96,17 @@ function PricedItemCard({
   const amazonNormPPU = amazonNorm && item.amazon.price !== null ? item.amazon.price / amazonNorm.quantity : null;
   const walmartNormPPU = walmartNorm && item.walmart.price !== null ? item.walmart.price / walmartNorm.quantity : null;
   const canCompare = !item.sizeMismatch && amazonNormPPU !== null && walmartNormPPU !== null && amazonNorm!.unit === walmartNorm!.unit;
+  // Line 2: per-unit comparison between stores (only when both have comparable prices)
   const amazonSavingsPct = canCompare && amazonCheapest ? Math.round((1 - amazonNormPPU! / walmartNormPPU!) * 100) : null;
   const walmartSavingsPct = canCompare && walmartCheapest ? Math.round((1 - walmartNormPPU! / amazonNormPPU!) * 100) : null;
+  // Line 1: savings vs receipt price (only when store price < pricePaid)
+  const paidRef = item.pricePaid && item.pricePaid > 0 ? item.pricePaid : null;
+  const amazonVsReceiptPct = paidRef && item.amazon.price !== null && item.amazon.price < paidRef
+    ? Math.round(((paidRef - item.amazon.price) / paidRef) * 100)
+    : null;
+  const walmartVsReceiptPct = paidRef && item.walmart.price !== null && item.walmart.price < paidRef
+    ? Math.round(((paidRef - item.walmart.price) / paidRef) * 100)
+    : null;
 
   const hasBulk =
     item.amazon.bulkPrice !== null &&
@@ -231,9 +240,14 @@ function PricedItemCard({
                       {item.amazon.productName}
                     </p>
                   )}
+                  {amazonVsReceiptPct !== null && amazonVsReceiptPct > 0 && (
+                    <p className="text-[#22c55e] text-[10px] leading-none mb-1">
+                      Save {amazonVsReceiptPct}% vs what you paid
+                    </p>
+                  )}
                   {amazonSavingsPct !== null && amazonSavingsPct > 0 && (
                     <p className="text-[#22c55e] text-[10px] leading-none mb-1">
-                      Save {amazonSavingsPct}% per unit vs Walmart
+                      {amazonSavingsPct}% cheaper per unit than Walmart
                     </p>
                   )}
                 </>
@@ -288,9 +302,14 @@ function PricedItemCard({
                   {item.walmart.productName}
                 </p>
               )}
+              {walmartVsReceiptPct !== null && walmartVsReceiptPct > 0 && (
+                <p className="text-[#22c55e] text-[10px] leading-none mb-1">
+                  Save {walmartVsReceiptPct}% vs what you paid
+                </p>
+              )}
               {walmartSavingsPct !== null && walmartSavingsPct > 0 && (
                 <p className="text-[#22c55e] text-[10px] leading-none mb-1">
-                  Save {walmartSavingsPct}% per unit vs Amazon
+                  {walmartSavingsPct}% cheaper per unit than Amazon
                 </p>
               )}
               <a href={walmartBuyHref} target="_blank" rel="noopener noreferrer" className="text-[#22c55e] hover:text-[#16a34a] text-xs transition-colors">
