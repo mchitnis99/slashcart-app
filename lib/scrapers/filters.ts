@@ -19,9 +19,16 @@ const NEGATIVE_KEYWORDS: Record<string, string[]> = {
   milk:       ["almond", "oat", "soy", "coconut", "cashew"],
   butter:     ["almond", "peanut", "cashew", "sunflower"],
   sugar:      ["stevia", "splenda", "monk fruit", "erythritol"],
+  oil:        ["spray"],
   shampoo:    ["travel size", "travel", "mini"],
   conditioner:["travel size", "travel", "mini"],
 };
+
+// Excluded from ALL results regardless of query category.
+// Uses specific multi-word phrases to avoid false positives (e.g. "Mini-Wheats").
+const GLOBAL_NEGATIVE_KEYWORDS = [
+  "travel size", "travel pack", "trial size", "sample size", "on-the-go",
+];
 
 // Minimum acceptable price per category — catches travel/trial sizes when pricePaid unavailable.
 const CATEGORY_MIN_PRICES: { pattern: RegExp; minPrice: number }[] = [
@@ -86,6 +93,47 @@ export function isSpecialty(productName: string, query: string): boolean {
   return SPECIALTY_WORDS.some((w) => nameLower.includes(w) && !queryLower.includes(w));
 }
 
+// Store brand patterns — these are acceptable only for generic (no-brand) queries.
+const STORE_BRAND_PATTERNS = [
+  /\bamazon\s+(basics|grocery|fresh|brand)\b/i,
+  /\bhappy\s+belly\b/i,
+  /\bsolimo\b/i,
+  /\bpresto\b/i,
+  /\b365\s+by\s+whole\s+foods\b/i,
+];
+
+export function isStoreBrand(productName: string): boolean {
+  return STORE_BRAND_PATTERNS.some((p) => p.test(productName));
+}
+
+// Variant groups: words within a group are mutually exclusive.
+// If the query contains one, the product must contain that same one (not a different one).
+const VARIANT_GROUPS: string[][] = [
+  // Personal care scents / formulas
+  ["aloe", "honey", "lavender", "cedar", "cedarwood", "rose", "rosemary",
+   "mint", "eucalyptus", "citrus", "vanilla", "coconut", "shea", "argan", "tea tree",
+   "original", "unscented", "fragrance free"],
+  // Oral care flavors
+  ["spearmint", "peppermint", "cinnamon", "bubblegum"],
+];
+
+// Returns { expectedVariant, foundVariant } if there is a conflict, or null if everything is fine.
+export function passesVariantCheck(
+  productName: string,
+  query: string
+): { expectedVariant: string; foundVariant: string } | null {
+  const queryLower = query.toLowerCase();
+  const nameLower = productName.toLowerCase();
+
+  for (const group of VARIANT_GROUPS) {
+    const queryVariant = group.find((v) => queryLower.includes(v));
+    if (!queryVariant) continue;
+    const foundVariant = group.find((v) => nameLower.includes(v) && v !== queryVariant);
+    if (foundVariant) return { expectedVariant: queryVariant, foundVariant };
+  }
+  return null;
+}
+
 // Capitalised words in the query (length > 2, not a stop word) are treated as brand names.
 export function extractBrands(query: string): string[] {
   return query
@@ -105,6 +153,16 @@ export function passesBrandCheck(productName: string, brands: string[]): boolean
 export function passesNegativeKeywords(productName: string, query: string, store: string): boolean {
   const queryLower = query.toLowerCase();
   const nameLower = productName.toLowerCase();
+
+  // Global exclusions — always apply regardless of query category
+  for (const exclusion of GLOBAL_NEGATIVE_KEYWORDS) {
+    if (nameLower.includes(exclusion) && !queryLower.includes(exclusion)) {
+      console.log(`[${store}] [NEGATIVE-KW: ${exclusion}] "${productName}" (query: "${query}")`);
+      return false;
+    }
+  }
+
+  // Category-specific exclusions — only apply when query contains the category word
   for (const [category, exclusions] of Object.entries(NEGATIVE_KEYWORDS)) {
     if (!queryLower.includes(category)) continue;
     for (const exclusion of exclusions) {

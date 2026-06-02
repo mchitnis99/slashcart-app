@@ -5,6 +5,8 @@ import {
   passesBrandCheck,
   passesNegativeKeywords,
   getCategoryMinPrice,
+  isStoreBrand,
+  passesVariantCheck,
 } from "@/lib/scrapers/filters";
 
 export type AmazonResult = {
@@ -76,84 +78,107 @@ export async function scrapeAmazonPrice(itemName: string, pricePaid?: number): P
   console.log(`[amazon] Got ${results.length} results for "${itemName}" (pricePaid=${pricePaid ?? "none"})`);
 
   const brands = extractBrands(itemName);
+  const hasBrand = brands.length > 0;
   const categoryMin = getCategoryMinPrice(itemName);
 
   type Candidate = { result: Record<string, unknown>; price: number; asin: string | null };
   const standard: Candidate[] = [];
   const specialty: Candidate[] = [];
-  const noBrand: Candidate[] = [];
   const tooBig: Candidate[] = [];
   const tooSmall: Candidate[] = [];
 
   for (const result of results) {
-    const price = parsePrice(result.price);
     const title = String(result.name ?? result.title ?? "");
 
     // Bulk listings are handled in a separate pass below
     if (BULK_RE.test(title)) continue;
 
+    // Rule 4: log no-price results
+    const price = parsePrice(result.price);
     if (!isRelevant(title, itemName)) {
       console.log(`[amazon] [FAIL] "${title}" @ ${price !== null ? `$${price}` : "no price"} (query: "${itemName}")`);
       continue;
     }
-    if (price === null) continue;
+    if (price === null) {
+      console.log(`[amazon] [NO-PRICE] "${title}" (query: "${itemName}")`);
+      continue;
+    }
 
     if (!passesNegativeKeywords(title, itemName, "amazon")) continue;
 
-    // Sanity check: if price is < 50% of what the user paid, it's likely a travel/mini size
+    // Size sanity checks
     if (pricePaid && price < pricePaid * 0.50) {
       console.log(`[amazon] [TOO-SMALL] "${title}" @ $${price} (pricePaid=$${pricePaid}, ${Math.round(price/pricePaid*100)}% of paid) (query: "${itemName}")`);
       tooSmall.push({ result, price, asin: toStringOrNull(result.asin ?? result.product_id) });
       continue;
     }
-
-    // Category price floor: catches travel sizes even without pricePaid
     if (categoryMin !== null && price < categoryMin) {
       console.log(`[amazon] [TOO-SMALL] "${title}" @ $${price} (category floor $${categoryMin}) (query: "${itemName}")`);
       tooSmall.push({ result, price, asin: toStringOrNull(result.asin ?? result.product_id) });
       continue;
     }
-
-    // Sanity check: if price is > 300% of what the user paid, it's likely a multi-pack or bulk
-    if (pricePaid && price > pricePaid * 3.00) {
-      console.log(`[amazon] [TOO-BIG] "${title}" @ $${price} (pricePaid=$${pricePaid}, >300%) (query: "${itemName}")`);
+    if (pricePaid && price > pricePaid * 2.00) {
+      console.log(`[amazon] [TOO-BIG] "${title}" @ $${price} (pricePaid=$${pricePaid}, ${Math.round(price/pricePaid*100)}% of paid) (query: "${itemName}")`);
       tooBig.push({ result, price, asin: toStringOrNull(result.asin ?? result.product_id) });
       continue;
     }
 
-    const brandOk = passesBrandCheck(title, brands);
-    const special = isSpecialty(title, itemName);
-    const label = !brandOk ? "BRAND-SKIP" : special ? "SPECIALTY" : "PASS";
-    console.log(`[amazon] [${label}] "${title}" @ $${price} (query: "${itemName}")`);
+    // Rule 1 & 2: Brand enforcement — only for branded queries
+    if (hasBrand) {
+      if (!passesBrandCheck(title, brands)) {
+        const inferredBrand = title.split(/\s+/).slice(0, 3).join(" ");
+        if (isStoreBrand(title)) {
+          console.log(`[amazon] [BRAND-SKIP] store brand substitution rejected: "${inferredBrand}" for branded query "${itemName}"`);
+        } else {
+          console.log(`[amazon] [BRAND-SKIP] brand mismatch: expected "${brands.join("/")}", got "${inferredBrand}" (query: "${itemName}")`);
+        }
+        continue; // Rule 5: no fallback to wrong brand
+      }
+    }
 
+    // Rule 3: Variant mismatch (scent, formula, etc.)
+    const variantConflict = passesVariantCheck(title, itemName);
+    if (variantConflict !== null) {
+      console.log(`[amazon] [VARIANT-SKIP] expected "${variantConflict.expectedVariant}", got "${variantConflict.foundVariant}" in "${title}" (query: "${itemName}")`);
+      continue; // Rule 5: no fallback to wrong variant
+    }
+
+    const special = isSpecialty(title, itemName);
     const asin = toStringOrNull(result.asin ?? result.product_id);
-    if (!brandOk)     noBrand.push({ result, price, asin });
-    else if (special) specialty.push({ result, price, asin });
-    else              standard.push({ result, price, asin });
+    console.log(`[amazon] [${special ? "SPECIALTY" : "PASS"}] "${title}" @ $${price} (query: "${itemName}")`);
+    if (special) specialty.push({ result, price, asin });
+    else         standard.push({ result, price, asin });
   }
 
-  // Pick: standard → specialty → noBrand → tooBig → tooSmall → first priced fallback
-  const pool = standard.length > 0 ? standard
-    : specialty.length > 0 ? specialty
-    : noBrand.length > 0 ? noBrand
-    : tooBig.length > 0 ? tooBig
-    : tooSmall;
-  let regularCandidate: Candidate | null = pool.length > 0
-    ? pool.reduce((a, b) => (b.price < a.price ? b : a))
-    : null;
+  // Rule 5: Branded queries get no wrong-brand/wrong-variant fallback.
+  //         Generic queries keep the full fallback chain.
+  let regularCandidate: Candidate | null = null;
 
-  if (regularCandidate === null) {
-    for (const result of results) {
-      const price = parsePrice(result.price);
-      if (price !== null) {
-        regularCandidate = { result, price, asin: toStringOrNull(result.asin ?? result.product_id) };
-        break;
+  if (hasBrand) {
+    // Standard → specialty only. If both empty, return null — unavailable is better than wrong.
+    const pool = standard.length > 0 ? standard : specialty;
+    regularCandidate = pool.length > 0 ? pool.reduce((a, b) => (b.price < a.price ? b : a)) : null;
+  } else {
+    // Generic: standard → specialty → tooBig → tooSmall → first priced
+    const pool = standard.length > 0 ? standard
+      : specialty.length > 0 ? specialty
+      : tooBig.length > 0 ? tooBig
+      : tooSmall;
+    regularCandidate = pool.length > 0 ? pool.reduce((a, b) => (b.price < a.price ? b : a)) : null;
+
+    if (regularCandidate === null) {
+      for (const result of results) {
+        const price = parsePrice(result.price);
+        if (price !== null) {
+          regularCandidate = { result, price, asin: toStringOrNull(result.asin ?? result.product_id) };
+          break;
+        }
       }
     }
   }
 
   if (regularCandidate === null) {
-    console.error(`[amazon] No priced results for "${itemName}". Response:`, JSON.stringify(data).slice(0, 500));
+    console.log(`[amazon] No suitable result for "${itemName}" (hasBrand=${hasBrand}, standard=${standard.length}, specialty=${specialty.length})`);
     return null;
   }
 
@@ -187,7 +212,7 @@ export async function scrapeAmazonPrice(itemName: string, pricePaid?: number): P
     (bulkPrice !== null && bulkQuantity !== null
       ? `, bulk: $${bulkPrice} (${bulkQuantity} units, $${(bulkPrice / bulkQuantity).toFixed(2)}/unit)`
       : "") +
-    ` (from ${standard.length} standard, ${specialty.length} specialty, ${noBrand.length} no-brand, ${tooBig.length} too-big, ${tooSmall.length} too-small)`
+    ` (from ${standard.length} standard, ${specialty.length} specialty, ${tooBig.length} too-big, ${tooSmall.length} too-small, branded=${hasBrand})`
   );
 
   return {

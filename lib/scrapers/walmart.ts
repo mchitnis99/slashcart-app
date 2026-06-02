@@ -95,9 +95,9 @@ export async function scrapeWalmartPrice(itemName: string, pricePaid?: number): 
       continue;
     }
 
-    // Sanity check: if price is > 300% of what the user paid, it's likely a multi-pack or bulk
-    if (pricePaid && price > pricePaid * 3.00) {
-      console.log(`[walmart] [TOO-BIG] "${name}" @ $${price} (pricePaid=$${pricePaid}, >300%) (query: "${itemName}")`);
+    // Sanity check: if price is > 200% of what the user paid, it's likely a multi-pack or bulk
+    if (pricePaid && price > pricePaid * 2.00) {
+      console.log(`[walmart] [TOO-BIG] "${name}" @ $${price} (pricePaid=$${pricePaid}, ${Math.round(price/pricePaid*100)}% of paid) (query: "${itemName}")`);
       tooBig.push({ name, price, url: resultUrl });
       continue;
     }
