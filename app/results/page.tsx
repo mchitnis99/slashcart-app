@@ -96,9 +96,13 @@ function PricedItemCard({
   const amazonNormPPU = amazonNorm && item.amazon.price !== null ? item.amazon.price / amazonNorm.quantity : null;
   const walmartNormPPU = walmartNorm && item.walmart.price !== null ? item.walmart.price / walmartNorm.quantity : null;
   const canCompare = !item.sizeMismatch && amazonNormPPU !== null && walmartNormPPU !== null && amazonNorm!.unit === walmartNorm!.unit;
-  // Line 2: per-unit comparison between stores (only when both have comparable prices)
-  const amazonSavingsPct = canCompare && amazonCheapest ? Math.round((1 - amazonNormPPU! / walmartNormPPU!) * 100) : null;
-  const walmartSavingsPct = canCompare && walmartCheapest ? Math.round((1 - walmartNormPPU! / amazonNormPPU!) * 100) : null;
+  // Line 2: pure store-vs-store per-unit comparison — independent of pricePaid gating
+  const amazonVsWalmartPct = canCompare && amazonNormPPU! < walmartNormPPU!
+    ? Math.round((1 - amazonNormPPU! / walmartNormPPU!) * 100)
+    : null;
+  const walmartVsAmazonPct = canCompare && walmartNormPPU! < amazonNormPPU!
+    ? Math.round((1 - walmartNormPPU! / amazonNormPPU!) * 100)
+    : null;
   // Line 1: savings vs receipt price (only when store price < pricePaid)
   const paidRef = item.pricePaid && item.pricePaid > 0 ? item.pricePaid : null;
   const amazonVsReceiptPct = paidRef && item.amazon.price !== null && item.amazon.price < paidRef
@@ -245,9 +249,9 @@ function PricedItemCard({
                       Save {amazonVsReceiptPct}% vs what you paid
                     </p>
                   )}
-                  {amazonSavingsPct !== null && amazonSavingsPct > 0 && (
+                  {amazonVsWalmartPct !== null && amazonVsWalmartPct > 0 && (
                     <p className="text-[#22c55e] text-[10px] leading-none mb-1">
-                      {amazonSavingsPct}% cheaper per unit than Walmart
+                      {amazonVsWalmartPct}% cheaper per unit than Walmart
                     </p>
                   )}
                 </>
@@ -307,9 +311,9 @@ function PricedItemCard({
                   Save {walmartVsReceiptPct}% vs what you paid
                 </p>
               )}
-              {walmartSavingsPct !== null && walmartSavingsPct > 0 && (
+              {walmartVsAmazonPct !== null && walmartVsAmazonPct > 0 && (
                 <p className="text-[#22c55e] text-[10px] leading-none mb-1">
-                  {walmartSavingsPct}% cheaper per unit than Amazon
+                  {walmartVsAmazonPct}% cheaper per unit than Amazon
                 </p>
               )}
               <a href={walmartBuyHref} target="_blank" rel="noopener noreferrer" className="text-[#22c55e] hover:text-[#16a34a] text-xs transition-colors">
