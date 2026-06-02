@@ -30,19 +30,26 @@ function getWinners(item: PricedItem): { amazonCheapest: boolean; walmartCheapes
   const amazonNormPPU = amazonNorm && item.amazon.price !== null ? item.amazon.price / amazonNorm.quantity : null;
   const walmartNormPPU = walmartNorm && item.walmart.price !== null ? item.walmart.price / walmartNorm.quantity : null;
 
+  let amazonCheapest: boolean;
+  let walmartCheapest: boolean;
+
   if (amazonNormPPU !== null && walmartNormPPU !== null && amazonNorm!.unit === walmartNorm!.unit) {
-    return {
-      amazonCheapest: amazonNormPPU <= walmartNormPPU,
-      walmartCheapest: walmartNormPPU <= amazonNormPPU,
-    };
+    amazonCheapest = amazonNormPPU <= walmartNormPPU;
+    walmartCheapest = walmartNormPPU <= amazonNormPPU;
+  } else {
+    const prices = [item.amazon.price, item.walmart.price].filter((p): p is number => p !== null);
+    const minPrice = prices.length > 0 ? Math.min(...prices) : null;
+    amazonCheapest = minPrice !== null && item.amazon.price === minPrice;
+    walmartCheapest = minPrice !== null && item.walmart.price === minPrice;
   }
 
-  const prices = [item.amazon.price, item.walmart.price].filter((p): p is number => p !== null);
-  const minPrice = prices.length > 0 ? Math.min(...prices) : null;
-  return {
-    amazonCheapest: minPrice !== null && item.amazon.price === minPrice,
-    walmartCheapest: minPrice !== null && item.walmart.price === minPrice,
-  };
+  // Gate by pricePaid: a store only "wins" if its price is actually less than what was paid.
+  if (item.pricePaid && item.pricePaid > 0) {
+    if (item.amazon.price !== null && item.amazon.price >= item.pricePaid) amazonCheapest = false;
+    if (item.walmart.price !== null && item.walmart.price >= item.pricePaid) walmartCheapest = false;
+  }
+
+  return { amazonCheapest, walmartCheapest };
 }
 
 function defaultStore(item: PricedItem): "amazon" | "walmart" {
@@ -463,7 +470,13 @@ export default function ResultsPage() {
     groceryItems.forEach((_, i) => {
       const item = pricedItems[i];
       if (!item) return;
-      const store = storeSelections[i] ?? defaultStore(item);
+      const manualStore = storeSelections[i];
+      // Without a manual override, skip items where both stores cost more than pricePaid
+      if (!manualStore) {
+        const { amazonCheapest, walmartCheapest } = getWinners(item);
+        if (item.pricePaid && item.pricePaid > 0 && !amazonCheapest && !walmartCheapest) return;
+      }
+      const store = manualStore ?? defaultStore(item);
       if (store === "amazon") amazonSelectedEntries.push({ index: i, item });
       else walmartSelectedItems.push(item);
     });
