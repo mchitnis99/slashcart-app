@@ -123,6 +123,7 @@ function PricedItemCard({
 
   const checkedLabel = `Checked ${new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
 
+
   const amazonBuyHref =
     bulkSelected === "bulk" && item.amazon.bulkAsin
       ? `https://www.amazon.com/dp/${item.amazon.bulkAsin}?tag=slashcart-20`

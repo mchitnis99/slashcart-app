@@ -110,15 +110,18 @@ export default function GroceryInput() {
 
   return (
     <form onSubmit={handleSubmit} className="w-full max-w-2xl mx-auto space-y-4">
-      <div className="relative">
+      <div>
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder="Paste or type your full grocery list — we'll find savings on pantry staples and packaged goods"
+          placeholder="Paste your grocery list — we'll find savings on pantry staples, packaged goods, and household supplies. Fresh produce, meat, and dairy not included."
           rows={8}
           disabled={loading}
           className="w-full rounded-xl border border-slate-600 bg-[#0f1f3d] text-[#e2e8f0] placeholder-[#475569] p-4 text-sm leading-relaxed resize-none focus:outline-none focus:ring-2 focus:ring-[#22c55e] transition disabled:opacity-50 disabled:cursor-not-allowed"
         />
+        <p className="mt-1.5 text-xs text-white/30 px-1">
+          Works best for: canned goods, dry goods, cleaning supplies, personal care, and paper products
+        </p>
       </div>
 
       <div className="flex items-center gap-3">

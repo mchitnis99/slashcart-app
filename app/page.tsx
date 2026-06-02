@@ -42,7 +42,7 @@ export default function HomePage() {
           Most people overpay because they only ever look at shelf prices.
         </p>
         <p className="text-[#94a3b8] text-base sm:text-lg max-w-lg mx-auto">
-          We unlock the savings hidden in per-unit pricing across Amazon and Walmart — for your entire list in one click.
+          We unlock the savings hidden in per-unit pricing across Amazon and Walmart — for every pantry item on your list in one click.
         </p>
       </div>
 
