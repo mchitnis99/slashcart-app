@@ -67,8 +67,13 @@ export async function scrapeWalmartPrice(itemName: string, pricePaid?: number): 
   const tooSmall: Candidate[] = [];
 
   for (const result of results) {
-    const price = parsePrice(result.price ?? result.sale_price ?? result.primary_price);
     const name = String(result.name ?? result.title ?? itemName);
+    // Log all price fields so we can identify which one ScraperAPI populates
+    if (result.price !== undefined || result.sale_price !== undefined || result.primary_price !== undefined || result.unit_price !== undefined) {
+      console.log(`[walmart] price fields for "${name}": price=${result.price ?? "—"} sale_price=${result.sale_price ?? "—"} primary_price=${result.primary_price ?? "—"} unit_price=${result.unit_price ?? "—"}`);
+    }
+    // Prefer primary_price (shelf price) over price (may be unit/per-item price on some results)
+    const price = parsePrice(result.primary_price ?? result.price ?? result.sale_price);
     const resultUrl = (typeof result.url === "string" && result.url) ? result.url
                     : (typeof result.link === "string" && result.link) ? result.link
                     : null;
