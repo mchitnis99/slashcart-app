@@ -752,14 +752,9 @@ export default function ResultsPage() {
                   {walmartSelectedItems.length} item{walmartSelectedItems.length !== 1 ? "s" : ""} on Walmart
                   {" · "}<span className="text-[#e2e8f0] font-medium">${walmartSelectedTotal.toFixed(2)}</span>
                 </p>
-                <a
-                  href={walmartCartUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-full flex items-center justify-center rounded-xl border border-[#22c55e] text-[#22c55e] hover:bg-[#22c55e]/10 font-bold text-base px-6 py-4 transition-colors"
-                >
-                  Checkout on Walmart →
-                </a>
+                <p className="text-[#475569] text-xs">
+                  Add Walmart items to your cart using the Buy → links above, then checkout on Walmart.
+                </p>
               </div>
             )}
           </div>
