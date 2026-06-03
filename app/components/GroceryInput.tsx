@@ -60,7 +60,7 @@ export default function GroceryInput() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!text.trim() && !imageFile) {
-      setError("Please paste a grocery list or upload a photo.");
+      setError("Please upload a receipt or paste a grocery list.");
       return;
     }
     setError(null);
@@ -110,63 +110,51 @@ export default function GroceryInput() {
 
   return (
     <form onSubmit={handleSubmit} className="w-full max-w-2xl mx-auto space-y-4">
+
+      {/* Primary: receipt upload */}
       <div>
-        <textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="Paste your grocery list — we'll find savings on pantry staples, packaged goods, and household supplies. Fresh produce, meat, and dairy not included."
-          rows={8}
-          disabled={loading}
-          className="w-full rounded-xl border border-slate-600 bg-[#0f1f3d] text-[#e2e8f0] placeholder-[#475569] p-4 text-sm leading-relaxed resize-none focus:outline-none focus:ring-2 focus:ring-[#22c55e] transition disabled:opacity-50 disabled:cursor-not-allowed"
-        />
-        <p className="mt-1.5 text-xs text-white/30 px-1">
-          Works best for: canned goods, dry goods, cleaning supplies, personal care, and paper products
+        <p className="text-[#e2e8f0] text-sm font-semibold mb-1">Upload your receipt</p>
+        <p className="text-[#94a3b8] text-xs mb-3">
+          See exactly how much you overpaid — and where to buy cheaper next time.
         </p>
+        {imagePreview ? (
+          <div className="relative rounded-xl overflow-hidden border border-[#1e3050] bg-[#142036]">
+            <img
+              src={imagePreview}
+              alt="Receipt preview"
+              className="w-full max-h-64 object-contain"
+            />
+            {!loading && (
+              <button
+                type="button"
+                onClick={removeImage}
+                className="absolute top-2 right-2 bg-[#0b1426]/80 hover:bg-red-600 text-white rounded-full w-7 h-7 flex items-center justify-center text-xs transition"
+                aria-label="Remove image"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => !loading && fileInputRef.current?.click()}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            disabled={loading}
+            className={`w-full rounded-xl border border-dashed py-8 text-sm flex flex-col items-center gap-2 transition disabled:opacity-50 disabled:cursor-not-allowed ${
+              isDragging
+                ? "border-[#22c55e] bg-[#0f2030] text-[#22c55e]"
+                : "border-[#22c55e]/40 bg-[#0d2416] hover:border-[#22c55e] hover:bg-[#0f2030] text-[#94a3b8] hover:text-[#22c55e]"
+            }`}
+          >
+            <span className="text-3xl">📷</span>
+            <span className="font-medium">Tap to upload or drag your receipt here</span>
+            <span className="text-xs text-[#475569]">JPG, PNG, WEBP, HEIC supported</span>
+          </button>
+        )}
       </div>
-
-      <div className="flex items-center gap-3">
-        <div className="flex-1 h-px bg-[#1e3050]" />
-        <span className="text-[#475569] text-xs uppercase tracking-widest">or</span>
-        <div className="flex-1 h-px bg-[#1e3050]" />
-      </div>
-
-      {imagePreview ? (
-        <div className="relative rounded-xl overflow-hidden border border-[#1e3050] bg-[#142036]">
-          <img
-            src={imagePreview}
-            alt="Grocery list preview"
-            className="w-full max-h-56 object-contain"
-          />
-          {!loading && (
-            <button
-              type="button"
-              onClick={removeImage}
-              className="absolute top-2 right-2 bg-[#0b1426]/80 hover:bg-red-600 text-white rounded-full w-7 h-7 flex items-center justify-center text-xs transition"
-              aria-label="Remove image"
-            >
-              ✕
-            </button>
-          )}
-        </div>
-      ) : (
-        <button
-          type="button"
-          onClick={() => !loading && fileInputRef.current?.click()}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-          disabled={loading}
-          className={`w-full rounded-xl border border-dashed py-6 text-sm flex flex-col items-center gap-2 transition disabled:opacity-50 disabled:cursor-not-allowed ${
-            isDragging
-              ? "border-[#22c55e] bg-[#0f2030] text-[#22c55e]"
-              : "border-[#1e3050] bg-[#142036] hover:border-[#22c55e] hover:bg-[#0f2030] text-[#94a3b8] hover:text-[#22c55e]"
-          }`}
-        >
-          <span className="text-2xl">📷</span>
-          <span>Or upload a photo of your grocery list or receipt</span>
-          <span className="text-xs text-[#475569]">JPG, PNG, WEBP, HEIC supported</span>
-        </button>
-      )}
 
       <input
         ref={fileInputRef}
@@ -175,6 +163,29 @@ export default function GroceryInput() {
         onChange={handleFileChange}
         className="hidden"
       />
+
+      {/* Divider */}
+      <div className="flex items-center gap-3">
+        <div className="flex-1 h-px bg-[#1e3050]" />
+        <span className="text-[#475569] text-xs uppercase tracking-widest">or</span>
+        <div className="flex-1 h-px bg-[#1e3050]" />
+      </div>
+
+      {/* Secondary: text input */}
+      <div>
+        <p className="text-[#64748b] text-sm mb-2">Type your grocery list</p>
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="Paste your grocery list — we'll find savings on pantry staples, packaged goods, and household supplies. Fresh produce, meat, and dairy not included."
+          rows={6}
+          disabled={loading}
+          className="w-full rounded-xl border border-slate-600 bg-[#0f1f3d] text-[#e2e8f0] placeholder-[#475569] p-4 text-sm leading-relaxed resize-none focus:outline-none focus:ring-2 focus:ring-[#22c55e] transition disabled:opacity-50 disabled:cursor-not-allowed"
+        />
+        <p className="mt-1.5 text-xs text-white/30 px-1">
+          Works best for: canned goods, dry goods, cleaning supplies, personal care, and paper products
+        </p>
+      </div>
 
       {error && (
         <p className="text-red-400 text-sm bg-red-900/20 border border-red-800/40 rounded-lg px-4 py-2">
