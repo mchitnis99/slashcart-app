@@ -67,11 +67,21 @@ function buildAmazonCartUrl(asins: string[]): string | null {
 function buildWalmartCartUrl(items: PricedItem[]): string | null {
   const ids = items
     .map((item) => {
-      const match = item.walmart.url?.match(/\/ip\/[^/]+\/(\d+)/);
-      return match ? match[1] : null;
+      const raw = item.walmart.url ?? null;
+      const match = raw?.match(/\/ip\/[^/]+\/(\d+)/);
+      const rawId = match?.[1] ?? null;
+      // parseInt strips any non-digit suffix (e.g. ":1" variant suffixes in some URLs)
+      const numId = rawId ? parseInt(rawId, 10) : NaN;
+      const id = !isNaN(numId) && numId > 0 ? String(numId) : null;
+      console.log(`[walmart-cart] item="${item.name}" url=${raw} rawId=${rawId} → id=${id ?? "NOT EXTRACTED"}`);
+      return id;
     })
     .filter((id): id is string => id !== null);
-  if (ids.length === 0) return null;
+  console.log(`[walmart-cart] extracted ${ids.length}/${items.length} IDs:`, ids);
+  if (ids.length === 0) {
+    console.log("[walmart-cart] no IDs found — falling back to /cart");
+    return null;
+  }
   const url = `https://www.walmart.com/cart/add?items=${ids.map((id) => `${id}:1`).join(",")}`;
   console.log("[walmart-cart] built URL:", url);
   return url;
