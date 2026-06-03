@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { parseSize, toComparableSize } from "@/lib/utils/parseSize";
+import FeedbackForm from "@/app/components/FeedbackForm";
 
 type GroceryItem = { name: string; quantity: number; unit: string; pricePaid?: number | null };
 type StoreResult = { price: number | null; productName: string; url?: string | null };
@@ -687,6 +688,13 @@ export default function ResultsPage() {
         <p className="text-[#94a3b8] text-sm text-center animate-pulse mb-4">
           Hang on, comparing unit prices across Amazon and Walmart…
         </p>
+      )}
+
+      {allLoaded && (
+        <FeedbackForm
+          itemNames={groceryItems.map((i) => i.name)}
+          totalSavings={totalReceiptSavings}
+        />
       )}
 
       <div className="space-y-3 mb-8">
