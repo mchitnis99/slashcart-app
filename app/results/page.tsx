@@ -164,9 +164,9 @@ function PricedItemCard({
   );
 
   return (
-    <div className="rounded-xl border border-[#1e3050] bg-[#0d1830] px-3 py-3 sm:px-4 sm:py-4 overflow-hidden">
+    <div className="rounded-xl border border-[#1e3050] bg-[#111827] px-3 py-3 sm:px-4 sm:py-4 overflow-hidden">
       <div className="mb-3 min-w-0">
-        <p className="font-medium text-[#e2e8f0] capitalize truncate">{item.name}</p>
+        <p className="font-semibold text-white capitalize truncate">{item.name}</p>
         {item.pricePaid != null && (
           <div className="flex items-center gap-2 mt-0.5 flex-wrap">
             <span className="text-[#475569] text-xs">
@@ -187,11 +187,15 @@ function PricedItemCard({
       </div>
 
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3">
-        {/* Amazon card */}
-        <div className={`rounded-lg p-2.5 border overflow-hidden ${amazonCheapest ? "border-[#22c55e]/40 bg-[#22c55e]/5" : "border-[#1e3050] bg-[#142036]"}`}>
-          <div className="flex items-center justify-between gap-1 mb-1.5 min-w-0">
+        {/* Amazon card — entire card is clickable */}
+        <div className={`relative rounded-lg p-3 border overflow-hidden ${amazonCheapest ? "border-[#22c55e]/50 bg-[#0a2018]" : "border-[#334155] bg-[#1a2d3f]"}`}>
+          {item.amazon.price !== null && (
+            <a href={amazonBuyHref} target="_blank" rel="noopener noreferrer" className="absolute inset-0 z-0" aria-label="Buy on Amazon" />
+          )}
+          {/* Header: store label + best value + bulk toggle (z-10 so buttons stay clickable above the link overlay) */}
+          <div className="relative z-10 flex items-center justify-between gap-1 mb-2 min-w-0">
             <div className="flex items-center gap-1.5 min-w-0">
-              <p className="text-[#64748b] text-xs font-medium shrink-0">Amazon</p>
+              <p className="text-[#94a3b8] text-xs font-medium shrink-0">Amazon</p>
               {amazonCheapest && (
                 <span className="text-[9px] font-semibold text-[#22c55e] bg-[#22c55e]/10 border border-[#22c55e]/30 rounded px-1 py-0.5 leading-none shrink-0">
                   Best value
@@ -204,11 +208,11 @@ function PricedItemCard({
                   <button
                     key={opt}
                     type="button"
-                    onClick={() => onBulkToggle(opt)}
+                    onClick={(e) => { e.stopPropagation(); onBulkToggle(opt); }}
                     className={`text-[9px] px-1.5 py-0.5 rounded border transition capitalize ${
                       bulkSelected === opt
                         ? "border-[#22c55e] bg-[#22c55e]/10 text-[#22c55e]"
-                        : "border-[#1e3050] text-[#475569] hover:border-[#475569]"
+                        : "border-[#334155] text-[#475569] hover:border-[#475569]"
                     }`}
                   >
                     {opt}
@@ -223,21 +227,21 @@ function PricedItemCard({
                 <>
                   {bulkPerUnit !== null ? (
                     <>
-                      <p className={`font-bold text-base leading-none mb-0.5 ${amazonCheapest ? "text-[#22c55e]" : "text-[#e2e8f0]"}`}>
+                      <p className={`font-bold text-xl leading-none mb-0.5 ${amazonCheapest ? "text-[#22c55e]" : "text-white"}`}>
                         ${bulkPerUnit.toFixed(2)}/unit
                       </p>
-                      <p className="text-[#64748b] text-[11px] leading-none mb-1">
+                      <p className="text-[#94a3b8] text-xs leading-none mb-1">
                         ${item.amazon.bulkPrice!.toFixed(2)} · {item.amazon.bulkQuantity}-pack
                       </p>
                     </>
                   ) : (
-                    <p className={`font-bold text-base leading-none mb-1 ${amazonCheapest ? "text-[#22c55e]" : "text-[#e2e8f0]"}`}>
+                    <p className={`font-bold text-xl leading-none mb-1 ${amazonCheapest ? "text-[#22c55e]" : "text-white"}`}>
                       ${item.amazon.bulkPrice!.toFixed(2)}
-                      <span className="text-[#64748b] font-normal text-[11px] ml-1">{item.amazon.bulkQuantity}-pack</span>
+                      <span className="text-[#94a3b8] font-normal text-xs ml-1">{item.amazon.bulkQuantity}-pack</span>
                     </p>
                   )}
                   {item.amazon.productName !== item.name && (
-                    <p className="text-[#475569] text-[10px] truncate mb-1" title={item.amazon.productName}>
+                    <p className="text-[#64748b] text-[10px] truncate mb-1" title={item.amazon.productName}>
                       {item.amazon.productName}
                     </p>
                   )}
@@ -251,21 +255,21 @@ function PricedItemCard({
                 <>
                   {!item.sizeMismatch && amazonPricePerUnit !== null && amazonUnit ? (
                     <>
-                      <p className={`font-bold text-base leading-none mb-0.5 ${amazonCheapest ? "text-[#22c55e]" : "text-[#e2e8f0]"}`}>
+                      <p className={`font-bold text-xl leading-none mb-0.5 ${amazonCheapest ? "text-[#22c55e]" : "text-white"}`}>
                         ${amazonPricePerUnit.toFixed(2)}/{amazonUnit.unit}
                       </p>
-                      <p className="text-[#64748b] text-[11px] leading-none mb-1">
+                      <p className="text-[#94a3b8] text-xs leading-none mb-1">
                         ${(item.amazon.regularPrice ?? item.amazon.price).toFixed(2)} · {amazonUnit.quantity} {amazonUnit.unit}
                       </p>
                     </>
                   ) : (
-                    <p className={`font-bold text-base leading-none mb-1 ${amazonCheapest ? "text-[#22c55e]" : "text-[#e2e8f0]"}`}>
+                    <p className={`font-bold text-xl leading-none mb-1 ${amazonCheapest ? "text-[#22c55e]" : "text-white"}`}>
                       ${(item.amazon.regularPrice ?? item.amazon.price).toFixed(2)}
-                      {amazonUnit && <span className="text-[#64748b] font-normal text-[11px] ml-1">{amazonUnit.quantity} {amazonUnit.unit}</span>}
+                      {amazonUnit && <span className="text-[#94a3b8] font-normal text-xs ml-1">· {amazonUnit.quantity} {amazonUnit.unit}</span>}
                     </p>
                   )}
                   {item.amazon.productName !== item.name && (
-                    <p className="text-[#475569] text-[10px] truncate mb-1" title={item.amazon.productName}>
+                    <p className="text-[#64748b] text-[10px] truncate mb-1" title={item.amazon.productName}>
                       {item.amazon.productName}
                     </p>
                   )}
@@ -281,28 +285,26 @@ function PricedItemCard({
                   )}
                 </>
               )}
-              <div className="mt-1">
-                <a href={amazonBuyHref} target="_blank" rel="noopener noreferrer" className="text-[#22c55e] hover:text-[#16a34a] text-xs transition-colors">
-                  Buy →
-                </a>
-              </div>
-              <p className="text-[10px] text-white/30 mt-1.5">{checkedLabel}</p>
+              <p className="text-[10px] text-white/30 mt-2">{checkedLabel}</p>
             </>
           ) : (
             <>
               <p className="text-[#475569] text-xs mb-1">Unavailable</p>
-              <a href={`https://www.amazon.com/s?k=${encodeURIComponent(item.name)}&i=grocery`} target="_blank" rel="noopener noreferrer" className="text-[#475569] hover:text-[#64748b] text-xs transition-colors">
+              <a href={`https://www.amazon.com/s?k=${encodeURIComponent(item.name)}&i=grocery`} target="_blank" rel="noopener noreferrer" className="relative z-10 text-[#475569] hover:text-[#64748b] text-xs transition-colors">
                 Search →
               </a>
-              <p className="text-[10px] text-white/30 mt-1.5">{checkedLabel}</p>
+              <p className="text-[10px] text-white/30 mt-2">{checkedLabel}</p>
             </>
           )}
         </div>
 
-        {/* Walmart card */}
-        <div className={`rounded-lg p-2.5 border overflow-hidden ${walmartCheapest ? "border-[#22c55e]/40 bg-[#22c55e]/5" : "border-[#1e3050] bg-[#142036]"}`}>
-          <div className="flex items-center gap-1.5 mb-1.5 min-w-0">
-            <p className="text-[#64748b] text-xs font-medium shrink-0">Walmart</p>
+        {/* Walmart card — entire card is clickable */}
+        <div className={`relative rounded-lg p-3 border overflow-hidden ${walmartCheapest ? "border-[#22c55e]/50 bg-[#0a2018]" : "border-[#334155] bg-[#1a2d3f]"}`}>
+          {item.walmart.price !== null && (
+            <a href={walmartBuyHref} target="_blank" rel="noopener noreferrer" className="absolute inset-0 z-0" aria-label="Buy on Walmart" />
+          )}
+          <div className="relative z-10 flex items-center gap-1.5 mb-2 min-w-0">
+            <p className="text-[#94a3b8] text-xs font-medium shrink-0">Walmart</p>
             {walmartCheapest && (
               <span className="text-[9px] font-semibold text-[#22c55e] bg-[#22c55e]/10 border border-[#22c55e]/30 rounded px-1 py-0.5 leading-none shrink-0">
                 Best value
@@ -313,21 +315,21 @@ function PricedItemCard({
             <>
               {!item.sizeMismatch && walmartPricePerUnit !== null && walmartUnit ? (
                 <>
-                  <p className={`font-bold text-base leading-none mb-0.5 ${walmartCheapest ? "text-[#22c55e]" : "text-[#e2e8f0]"}`}>
+                  <p className={`font-bold text-xl leading-none mb-0.5 ${walmartCheapest ? "text-[#22c55e]" : "text-white"}`}>
                     ${walmartPricePerUnit.toFixed(2)}/{walmartUnit.unit}
                   </p>
-                  <p className="text-[#64748b] text-[11px] leading-none mb-1">
+                  <p className="text-[#94a3b8] text-xs leading-none mb-1">
                     ${item.walmart.price.toFixed(2)} · {walmartUnit.quantity} {walmartUnit.unit}
                   </p>
                 </>
               ) : (
-                <p className={`font-bold text-base leading-none mb-1 ${walmartCheapest ? "text-[#22c55e]" : "text-[#e2e8f0]"}`}>
+                <p className={`font-bold text-xl leading-none mb-1 ${walmartCheapest ? "text-[#22c55e]" : "text-white"}`}>
                   ${item.walmart.price.toFixed(2)}
-                  {walmartUnit && <span className="text-[#64748b] font-normal text-[11px] ml-1">{walmartUnit.quantity} {walmartUnit.unit}</span>}
+                  {walmartUnit && <span className="text-[#94a3b8] font-normal text-xs ml-1">· {walmartUnit.quantity} {walmartUnit.unit}</span>}
                 </p>
               )}
               {item.walmart.productName !== item.name && (
-                <p className="text-[#475569] text-[10px] truncate mb-1" title={item.walmart.productName}>
+                <p className="text-[#64748b] text-[10px] truncate mb-1" title={item.walmart.productName}>
                   {item.walmart.productName}
                 </p>
               )}
@@ -341,18 +343,15 @@ function PricedItemCard({
                   {walmartVsAmazonPct}% cheaper per unit than Amazon
                 </p>
               )}
-              <a href={walmartBuyHref} target="_blank" rel="noopener noreferrer" className="text-[#22c55e] hover:text-[#16a34a] text-xs transition-colors">
-                Buy →
-              </a>
-              <p className="text-[10px] text-white/30 mt-1.5">{checkedLabel}</p>
+              <p className="text-[10px] text-white/30 mt-2">{checkedLabel}</p>
             </>
           ) : (
             <>
               <p className="text-[#475569] text-xs mb-1">Unavailable</p>
-              <a href={walmartBuyHref} target="_blank" rel="noopener noreferrer" className="text-[#475569] hover:text-[#64748b] text-xs transition-colors">
+              <a href={walmartBuyHref} target="_blank" rel="noopener noreferrer" className="relative z-10 text-[#475569] hover:text-[#64748b] text-xs transition-colors">
                 Search →
               </a>
-              <p className="text-[10px] text-white/30 mt-1.5">{checkedLabel}</p>
+              <p className="text-[10px] text-white/30 mt-2">{checkedLabel}</p>
             </>
           )}
         </div>

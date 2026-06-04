@@ -64,9 +64,9 @@ export default function FeedbackForm({
   }
 
   return (
-    <div className="mb-4 rounded-xl border border-[#1e3050] bg-[#0d1830] px-4 py-4">
-      <h3 className="text-[#e2e8f0] font-semibold text-sm mb-0.5">How did we do?</h3>
-      <p className="text-[#475569] text-xs mb-3">
+    <div className="mb-4 rounded-xl border border-[#334155] bg-[#1a2d3f] px-4 py-4">
+      <h3 className="text-white font-semibold text-base mb-0.5">How did we do?</h3>
+      <p className="text-[#94a3b8] text-xs mb-3">
         Leave your email and we'll follow up to make sure you found real savings.
       </p>
       <form onSubmit={handleSubmit} className="space-y-2">
@@ -76,7 +76,7 @@ export default function FeedbackForm({
           onChange={(e) => setEmail(e.target.value)}
           placeholder="Your email"
           disabled={loading}
-          className="w-full rounded-lg border border-[#1e3050] bg-[#142036] text-[#e2e8f0] placeholder-[#475569] px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#22c55e] transition disabled:opacity-50"
+          className="w-full rounded-lg border border-[#334155] bg-[#111827] text-[#e2e8f0] placeholder-[#475569] px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#22c55e] transition disabled:opacity-50"
         />
         <textarea
           value={feedback}
@@ -84,13 +84,13 @@ export default function FeedbackForm({
           placeholder="Anything we missed? e.g. couldn't find almond milk, wrong size for paper towels..."
           rows={2}
           disabled={loading}
-          className="w-full rounded-lg border border-[#1e3050] bg-[#142036] text-[#e2e8f0] placeholder-[#475569] px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-[#22c55e] transition disabled:opacity-50"
+          className="w-full rounded-lg border border-[#334155] bg-[#111827] text-[#e2e8f0] placeholder-[#475569] px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-[#22c55e] transition disabled:opacity-50"
         />
         {error && <p className="text-red-400 text-xs">{error}</p>}
         <button
           type="submit"
           disabled={loading}
-          className="w-full py-2 rounded-lg border border-[#1e3050] hover:border-[#475569] bg-[#142036] disabled:opacity-50 disabled:cursor-not-allowed text-[#e2e8f0] text-sm font-medium transition-colors"
+          className="w-full py-2 rounded-lg border border-[#334155] hover:border-[#475569] bg-[#0d1830] disabled:opacity-50 disabled:cursor-not-allowed text-[#e2e8f0] text-sm font-medium transition-colors"
         >
           {loading ? "Sending…" : "Send feedback"}
         </button>
