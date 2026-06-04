@@ -188,12 +188,14 @@ function PricedItemCard({
 
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3">
         {/* Amazon card — entire card is clickable */}
-        <div className={`relative rounded-lg p-3 border overflow-hidden ${amazonCheapest ? "border-[#22c55e]/50 bg-[#0a2018]" : "border-[#334155] bg-[#1a2d3f]"}`}>
-          {item.amazon.price !== null && (
-            <a href={amazonBuyHref} target="_blank" rel="noopener noreferrer" className="absolute inset-0 z-0" aria-label="Buy on Amazon" />
-          )}
-          {/* Header: store label + best value + bulk toggle (z-10 so buttons stay clickable above the link overlay) */}
-          <div className="relative z-10 flex items-center justify-between gap-1 mb-2 min-w-0">
+        <a
+          href={item.amazon.price !== null ? amazonBuyHref : undefined}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={`block rounded-lg p-3 border overflow-hidden cursor-pointer ${amazonCheapest ? "border-[#22c55e]/50 bg-[#0a2018]" : "border-[#334155] bg-[#1a2d3f]"}`}
+          onClick={(e) => { if (item.amazon.price === null) e.preventDefault(); }}
+        >
+          <div className="flex items-center justify-between gap-1 mb-2 min-w-0">
             <div className="flex items-center gap-1.5 min-w-0">
               <p className="text-[#94a3b8] text-xs font-medium shrink-0">Amazon</p>
               {amazonCheapest && (
@@ -290,20 +292,21 @@ function PricedItemCard({
           ) : (
             <>
               <p className="text-[#475569] text-xs mb-1">Unavailable</p>
-              <a href={`https://www.amazon.com/s?k=${encodeURIComponent(item.name)}&i=grocery`} target="_blank" rel="noopener noreferrer" className="relative z-10 text-[#475569] hover:text-[#64748b] text-xs transition-colors">
-                Search →
-              </a>
+              <span className="text-[#475569] text-xs">Search →</span>
               <p className="text-[10px] text-white/30 mt-2">{checkedLabel}</p>
             </>
           )}
-        </div>
+        </a>
 
         {/* Walmart card — entire card is clickable */}
-        <div className={`relative rounded-lg p-3 border overflow-hidden ${walmartCheapest ? "border-[#22c55e]/50 bg-[#0a2018]" : "border-[#334155] bg-[#1a2d3f]"}`}>
-          {item.walmart.price !== null && (
-            <a href={walmartBuyHref} target="_blank" rel="noopener noreferrer" className="absolute inset-0 z-0" aria-label="Buy on Walmart" />
-          )}
-          <div className="relative z-10 flex items-center gap-1.5 mb-2 min-w-0">
+        <a
+          href={item.walmart.price !== null ? walmartBuyHref : undefined}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={`block rounded-lg p-3 border overflow-hidden cursor-pointer ${walmartCheapest ? "border-[#22c55e]/50 bg-[#0a2018]" : "border-[#334155] bg-[#1a2d3f]"}`}
+          onClick={(e) => { if (item.walmart.price === null) e.preventDefault(); }}
+        >
+          <div className="flex items-center gap-1.5 mb-2 min-w-0">
             <p className="text-[#94a3b8] text-xs font-medium shrink-0">Walmart</p>
             {walmartCheapest && (
               <span className="text-[9px] font-semibold text-[#22c55e] bg-[#22c55e]/10 border border-[#22c55e]/30 rounded px-1 py-0.5 leading-none shrink-0">
@@ -348,13 +351,11 @@ function PricedItemCard({
           ) : (
             <>
               <p className="text-[#475569] text-xs mb-1">Unavailable</p>
-              <a href={walmartBuyHref} target="_blank" rel="noopener noreferrer" className="relative z-10 text-[#475569] hover:text-[#64748b] text-xs transition-colors">
-                Search →
-              </a>
+              <span className="text-[#475569] text-xs">Search →</span>
               <p className="text-[10px] text-white/30 mt-2">{checkedLabel}</p>
             </>
           )}
-        </div>
+        </a>
       </div>
 
       <div className="mt-3 flex gap-2 w-full overflow-hidden">
