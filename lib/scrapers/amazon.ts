@@ -54,7 +54,9 @@ function toStringOrNull(val: unknown): string | null {
   return null;
 }
 
-export async function scrapeAmazonPrice(itemName: string, pricePaid?: number, preferredVariant?: string): Promise<AmazonResult[] | null> {
+const SIZE_UNITS = new Set(["oz", "fl oz", "lb", "lbs", "g", "kg", "ml"]);
+
+export async function scrapeAmazonPrice(itemName: string, pricePaid?: number, preferredVariant?: string, queryQuantity?: number, queryUnit?: string): Promise<AmazonResult[] | null> {
   const apiKey = process.env.SCRAPERAPI_KEY ?? "";
 
   // Append a variant keyword to the search query when one is known but not already
@@ -98,7 +100,10 @@ export async function scrapeAmazonPrice(itemName: string, pricePaid?: number, pr
   const brands = extractBrands(itemName);
   const hasBrand = brands.length > 0;
   const categoryMin = getCategoryMinPrice(itemName);
-  const queryNorm = toComparableSize(parseSize(searchQuery));
+  const queryNormFromArgs = queryQuantity && queryUnit && SIZE_UNITS.has(queryUnit.toLowerCase())
+    ? toComparableSize({ quantity: queryQuantity, unit: queryUnit })
+    : null;
+  const queryNorm = queryNormFromArgs ?? toComparableSize(parseSize(searchQuery));
 
   type Candidate = { result: Record<string, unknown>; price: number; asin: string | null };
   const standard: Candidate[] = [];

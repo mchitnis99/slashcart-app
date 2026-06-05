@@ -26,7 +26,10 @@ function parsePrice(raw: unknown): number | null {
   return null;
 }
 
-export async function scrapeWalmartPrice(itemName: string, pricePaid?: number): Promise<WalmartResult[] | null> {
+// Units that represent physical product size (as opposed to order quantity like "count" or "pack").
+const SIZE_UNITS = new Set(["oz", "fl oz", "lb", "lbs", "g", "kg", "ml"]);
+
+export async function scrapeWalmartPrice(itemName: string, pricePaid?: number, queryQuantity?: number, queryUnit?: string): Promise<WalmartResult[] | null> {
   const apiKey = process.env.SCRAPERAPI_KEY ?? "";
   const url =
     `https://api.scraperapi.com/structured/walmart/search` +
@@ -62,7 +65,13 @@ export async function scrapeWalmartPrice(itemName: string, pricePaid?: number): 
   const brands = extractBrands(itemName);
   const hasBrand = brands.length > 0;
   const categoryMin = getCategoryMinPrice(itemName);
-  const queryNorm = toComparableSize(parseSize(itemName));
+  // parse-list strips the size from item names (rule 5), so try the explicit quantity/unit
+  // first; fall back to parsing from the name for manually-entered queries that include size.
+  const queryNormFromArgs = queryQuantity && queryUnit && SIZE_UNITS.has(queryUnit.toLowerCase())
+    ? toComparableSize({ quantity: queryQuantity, unit: queryUnit })
+    : null;
+  const queryNorm = queryNormFromArgs ?? toComparableSize(parseSize(itemName));
+  console.log(`[walmart] SIZE-FILTER: queryNorm=${queryNorm ? `${parseFloat(queryNorm.quantity.toFixed(2))}${queryNorm.unit}` : "inactive"} (quantity=${queryQuantity ?? "—"} unit=${queryUnit ?? "—"})`);
 
   type Candidate = { name: string; price: number; url: string | null; imageUrl: string | null };
   const standard: Candidate[] = [];
@@ -92,12 +101,17 @@ export async function scrapeWalmartPrice(itemName: string, pricePaid?: number): 
     // size differs by more than 20% (only when both sides have a parseable size).
     if (queryNorm) {
       const resultNorm = toComparableSize(parseSize(name));
+      const qStr = `${parseFloat(queryNorm.quantity.toFixed(2))}${queryNorm.unit}`;
+      const rStr = resultNorm ? `${parseFloat(resultNorm.quantity.toFixed(2))}${resultNorm.unit}` : "no-size";
       if (resultNorm && resultNorm.unit === queryNorm.unit) {
         const ratio = resultNorm.quantity / queryNorm.quantity;
+        console.log(`[walmart] SIZE-CHECK: query=${qStr} result=${rStr} ratio=${ratio.toFixed(3)} ("${name}")`);
         if (ratio < 0.8 || ratio > 1.2) {
-          console.log(`[walmart] SIZE-REJECT: query specifies ${parseFloat(queryNorm.quantity.toFixed(2))}${queryNorm.unit}, result has ${parseFloat(resultNorm.quantity.toFixed(2))}${resultNorm.unit} ("${name}")`);
+          console.log(`[walmart] SIZE-REJECT: query specifies ${qStr}, result has ${rStr} ("${name}")`);
           continue;
         }
+      } else {
+        console.log(`[walmart] SIZE-CHECK: query=${qStr} result=${rStr} (skipped — unit mismatch or no size) ("${name}")`);
       }
     }
 
@@ -153,7 +167,10 @@ export async function scrapeWalmartPrice(itemName: string, pricePaid?: number): 
 
   const topCandidates: typeof allCandidates = [allCandidates[0]];
   for (let i = 1; i < allCandidates.length && topCandidates.length < 3; i++) {
-    if (hasVariantKeyword(allCandidates[i].name)) topCandidates.push(allCandidates[i]);
+    const c = allCandidates[i];
+    if (hasVariantKeyword(c.name) && !topCandidates.some((t) => t.name === c.name)) {
+      topCandidates.push(c);
+    }
   }
   const best = topCandidates[0];
   console.log(`[walmart] Selected: "${best.name}" @ $${best.price} + ${topCandidates.length - 1} variant(s) (standard=${standard.length}, specialty=${specialty.length}, noBrand=${noBrand.length})`);

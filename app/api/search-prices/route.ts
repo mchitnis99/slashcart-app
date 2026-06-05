@@ -67,10 +67,10 @@ function toAmazonStoreResult(raw: AmazonRaw, sizeMismatch: boolean): AmazonStore
   return { ...raw, annualSavings: sizeMismatch ? null : computeAnnualSavings(raw) };
 }
 
-async function tryAmazonScrape(itemName: string, pricePaid?: number | null, preferredVariant?: string | null): Promise<AmazonRaw | null> {
+async function tryAmazonScrape(itemName: string, pricePaid?: number | null, preferredVariant?: string | null, queryQuantity?: number, queryUnit?: string): Promise<AmazonRaw | null> {
   try {
     const { scrapeAmazonPrice } = await import("@/lib/scrapers/amazon");
-    const results = await scrapeAmazonPrice(itemName, pricePaid ?? undefined, preferredVariant ?? undefined);
+    const results = await scrapeAmazonPrice(itemName, pricePaid ?? undefined, preferredVariant ?? undefined, queryQuantity, queryUnit);
     if (!results || results.length === 0) return null;
     const primary = results[0];
     return {
@@ -93,10 +93,10 @@ async function tryAmazonScrape(itemName: string, pricePaid?: number | null, pref
   }
 }
 
-async function tryWalmartScrape(itemName: string, pricePaid?: number | null): Promise<StoreResult | null> {
+async function tryWalmartScrape(itemName: string, pricePaid?: number | null, queryQuantity?: number, queryUnit?: string): Promise<StoreResult | null> {
   try {
     const { scrapeWalmartPrice } = await import("@/lib/scrapers/walmart");
-    const results = await scrapeWalmartPrice(itemName, pricePaid ?? undefined);
+    const results = await scrapeWalmartPrice(itemName, pricePaid ?? undefined, queryQuantity, queryUnit);
     if (!results || results.length === 0) return null;
     const primary = results[0];
     return {
@@ -162,8 +162,8 @@ export async function POST(request: Request) {
 
     console.log(`[cache] MISS: "${cacheKey}"`);
     const [amazon, walmart] = await Promise.all([
-      tryAmazonScrape(item.name, item.pricePaid, item.preferredVariant),
-      tryWalmartScrape(item.name, item.pricePaid),
+      tryAmazonScrape(item.name, item.pricePaid, item.preferredVariant, item.quantity, item.unit),
+      tryWalmartScrape(item.name, item.pricePaid, item.quantity, item.unit),
     ]);
 
     if (amazon) console.log(`SCRAPED amazon: ${item.name} → $${amazon.price} (asin: ${amazon.asin})`);
