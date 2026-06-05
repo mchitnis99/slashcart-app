@@ -60,6 +60,26 @@ function defaultStore(item: PricedItem): "amazon" | "walmart" {
   return getWinners(item).walmartCheapest ? "walmart" : "amazon";
 }
 
+// Compute deduplicated pill labels for a set of variant candidates.
+// If two candidates produce the same base label, append the size to distinguish them.
+function getVariantLabels(variants: Array<{ productName: string }>, itemName: string): string[] {
+  const raw = variants.map((v) => extractVariantLabel(v.productName, itemName));
+  const counts = new Map<string, number>();
+  raw.forEach((l) => counts.set(l, (counts.get(l) ?? 0) + 1));
+  if ([...counts.values()].every((c) => c === 1)) return raw;
+
+  return variants.map((v, i) => {
+    const label = raw[i];
+    if ((counts.get(label) ?? 1) <= 1) return label;
+    const sizeMatch =
+      v.productName.match(/\d+(?:\.\d+)?[\s\-]*fl[\s\-]*oz\b/i) ??
+      v.productName.match(/\d+(?:\.\d+)?[\s\-]*oz\b/i) ??
+      v.productName.match(/\d+(?:\.\d+)?[\s\-]*lb\b/i) ??
+      v.productName.match(/\d+(?:\.\d+)?[\s\-]*count\b/i);
+    return sizeMatch ? `${label} ${sizeMatch[0].trim().replace(/\s+/g, "")}` : label;
+  });
+}
+
 function buildAmazonCartUrl(asins: string[]): string | null {
   if (asins.length === 0) return null;
   const params = asins
@@ -166,6 +186,8 @@ function PricedItemCard({
     : null;
 
   const checkedLabel = `Checked ${new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
+  const amazonPillLabels = amazonVariants.length >= 2 ? getVariantLabels(amazonVariants, item.name) : [];
+  const walmartPillLabels = walmartVariants.length >= 2 ? getVariantLabels(walmartVariants, item.name) : [];
 
   const amazonBuyHref =
     bulkSelected === "bulk" && effectiveAmazon.bulkAsin
@@ -239,7 +261,7 @@ function PricedItemCard({
           {/* Variant pills */}
           {amazonVariants.length >= 2 && (
             <div className="flex flex-wrap gap-1 mb-2">
-              {amazonVariants.map((v, idx) => (
+              {amazonVariants.map((_, idx) => (
                 <button
                   key={idx}
                   type="button"
@@ -250,7 +272,7 @@ function PricedItemCard({
                       : "border-[#334155] text-[#475569] hover:border-[#475569]"
                   }`}
                 >
-                  {extractVariantLabel(v.productName)}
+                  {amazonPillLabels[idx]}
                 </button>
               ))}
             </div>
@@ -360,7 +382,7 @@ function PricedItemCard({
           {/* Variant pills */}
           {walmartVariants.length >= 2 && (
             <div className="flex flex-wrap gap-1 mb-2">
-              {walmartVariants.map((v, idx) => (
+              {walmartVariants.map((_, idx) => (
                 <button
                   key={idx}
                   type="button"
@@ -371,7 +393,7 @@ function PricedItemCard({
                       : "border-[#334155] text-[#475569] hover:border-[#475569]"
                   }`}
                 >
-                  {extractVariantLabel(v.productName)}
+                  {walmartPillLabels[idx]}
                 </button>
               ))}
             </div>

@@ -161,17 +161,31 @@ export function hasVariantKeyword(productName: string): boolean {
 }
 
 // Extract a short display label from a product name for use as a variant pill label.
-// Checks VARIANT_GROUPS first (longest phrases first to prefer "olive oil" over "oil"),
-// then falls back to a parseable size token, then the first two words.
-export function extractVariantLabel(productName: string): string {
+// Checks VARIANT_GROUPS first (longest phrases first to prefer "olive oil" over "oil").
+// Also looks for qualifying words immediately before the variant keyword to add context
+// (e.g. "Jalapeno Smoked Olive Oil" instead of just "Olive Oil").
+// Pass itemName to exclude item-name words from being treated as qualifiers.
+export function extractVariantLabel(productName: string, itemName?: string): string {
   const nameLower = productName.toLowerCase();
+  const itemWords = new Set(
+    (itemName ?? "").toLowerCase().split(/\W+/).filter((w) => w.length > 2)
+  );
 
-  // Flatten all variant group words, sort longest first so multi-word phrases win
   const allVariants = VARIANT_GROUPS.flat().sort((a, b) => b.length - a.length);
   for (const v of allVariants) {
-    if (nameLower.includes(v)) {
-      return v.split(" ").map((w) => w[0]?.toUpperCase() + w.slice(1)).join(" ");
-    }
+    const idx = nameLower.indexOf(v);
+    if (idx === -1) continue;
+
+    // Grab up to 2 non-stop, non-item-name words immediately before the variant keyword
+    const qualifiers = productName
+      .slice(0, idx)
+      .trim()
+      .split(/\s+/)
+      .filter((w) => w.length > 2 && !STOP_WORDS.has(w.toLowerCase()) && !itemWords.has(w.toLowerCase()))
+      .slice(-2);
+
+    const variantCase = v.split(" ").map((w) => w[0]?.toUpperCase() + w.slice(1)).join(" ");
+    return qualifiers.length > 0 ? qualifiers.join(" ") + " " + variantCase : variantCase;
   }
 
   // Fall back to size token
