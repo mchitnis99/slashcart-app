@@ -121,6 +121,13 @@ function PricedItemCard({
   const amazonNormPPU = amazonNorm && item.amazon.price !== null ? item.amazon.price / amazonNorm.quantity : null;
   const walmartNormPPU = walmartNorm && item.walmart.price !== null ? item.walmart.price / walmartNorm.quantity : null;
   const canCompare = !item.sizeMismatch && amazonNormPPU !== null && walmartNormPPU !== null && amazonNorm!.unit === walmartNorm!.unit;
+  console.log(
+    `[ppu] "${item.name}" | amazon: "${item.amazon.productName}" → ` +
+    `size=${amazonUnit?.quantity ?? "null"} unit=${amazonUnit?.unit ?? "null"} normPPU=${amazonNormPPU !== null ? `$${amazonNormPPU.toFixed(4)}/${amazonNorm!.unit}` : "null"} | ` +
+    `walmart: "${item.walmart.productName}" → ` +
+    `size=${walmartUnit?.quantity ?? "null"} unit=${walmartUnit?.unit ?? "null"} normPPU=${walmartNormPPU !== null ? `$${walmartNormPPU.toFixed(4)}/${walmartNorm!.unit}` : "null"} | ` +
+    `canCompare=${canCompare}`
+  );
   // Line 2: pure store-vs-store per-unit comparison — independent of pricePaid gating
   const amazonVsWalmartPct = canCompare && amazonNormPPU! < walmartNormPPU!
     ? Math.round((1 - amazonNormPPU! / walmartNormPPU!) * 100)

@@ -20,7 +20,7 @@ export function parseSize(productName: string, store?: string): ParsedUnit | nul
   if (parsed) return parsed;
 
   const m = productName.match(
-    /(\d+(?:\.\d+)?)\s*(fluid\s+ounces?|fl\.?\s*oz|ounces?|oz|pounds?|lbs?|lb|kilograms?|kg|grams?|g(?![a-z])|ml|litr(?:es?|ers?)|count|ct|sheets?|rolls?)\b/i
+    /(\d+(?:\.\d+)?)[\s\-]*(fluid[\s\-]+ounces?|fl\.?[\s\-]*oz|ounces?|oz|pounds?|lbs?|lb|kilograms?|kg|grams?|g(?![a-z])|ml|litr(?:es?|ers?)|count|ct|sheets?|rolls?)\b/i
   );
   if (m) {
     const qty = Number(m[1]);

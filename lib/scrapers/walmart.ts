@@ -149,5 +149,6 @@ export async function scrapeWalmartPrice(itemName: string, pricePaid?: number): 
 
   const best = pool.reduce((a, b) => (b.price < a.price ? b : a));
   console.log(`[walmart] Selected: "${best.name}" @ $${best.price} (from ${standard.length} standard, ${specialty.length} specialty, ${noBrand.length} no-brand, ${tooBig.length} too-big, ${tooSmall.length} too-small)`);
+
   return { name: best.name, price: best.price, inStock: true, url: best.url, imageUrl: best.imageUrl };
 }
