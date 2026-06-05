@@ -122,6 +122,14 @@ const VARIANT_GROUPS: string[][] = [
    "original", "unscented", "fragrance free"],
   // Oral care flavors
   ["spearmint", "peppermint", "cinnamon", "bubblegum"],
+  // Tuna / seafood packing medium (multi-word phrases listed before single words to win .find())
+  ["olive oil", "spring water", "oregano", "lemon", "garlic", "water"],
+  // Jam / spread flavor
+  ["mixed berry", "strawberry", "raspberry", "apricot", "blueberry", "goji", "superfruit"],
+  // Oil type (single-word — must appear as a whole word to avoid "olive" matching "olivewood")
+  ["avocado", "vegetable", "canola", "sesame"],
+  // Bean / legume type
+  ["cannellini", "chickpea", "lupini", "kidney", "pinto", "navy"],
 ];
 
 // Returns { expectedVariant, foundVariant } if there is a conflict, or null if everything is fine.
@@ -135,7 +143,11 @@ export function passesVariantCheck(
   for (const group of VARIANT_GROUPS) {
     const queryVariant = group.find((v) => queryLower.includes(v));
     if (!queryVariant) continue;
-    const foundVariant = group.find((v) => nameLower.includes(v) && v !== queryVariant);
+    // Guard: skip candidates that are substrings of the query variant itself
+    // (e.g. "water" is a substring of "spring water" — not a conflict)
+    const foundVariant = group.find(
+      (v) => nameLower.includes(v) && v !== queryVariant && !queryVariant.includes(v)
+    );
     if (foundVariant) return { expectedVariant: queryVariant, foundVariant };
   }
   return null;

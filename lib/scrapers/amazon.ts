@@ -210,6 +210,15 @@ export async function scrapeAmazonPrice(itemName: string, pricePaid?: number): P
     : (typeof regularResult.thumbnail === "string" && regularResult.thumbnail)
     ? regularResult.thumbnail
     : null;
+  if (!imageUrl) {
+    console.log(`[scraper] available image fields for "${name}":`, JSON.stringify({
+      image: regularResult.image,
+      thumbnail: regularResult.thumbnail,
+      img: regularResult.img,
+      photo: regularResult.photo,
+      picture: regularResult.picture,
+    }));
+  }
   console.log(
     `[amazon] Selected "${itemName}": ${name} @ $${regularPrice}` +
     (bulkPrice !== null && bulkQuantity !== null
