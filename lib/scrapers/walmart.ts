@@ -75,8 +75,11 @@ export async function scrapeWalmartPrice(itemName: string, pricePaid?: number): 
     if (result.price !== undefined || result.sale_price !== undefined || result.primary_price !== undefined || result.unit_price !== undefined) {
       console.log(`[walmart] price fields for "${name}": price=${result.price ?? "—"} sale_price=${result.sale_price ?? "—"} primary_price=${result.primary_price ?? "—"} unit_price=${result.unit_price ?? "—"}`);
     }
-    // Prefer primary_price (shelf price) over price (may be unit/per-item price on some results)
+    // primary_price is the shelf price; price is sometimes a per-unit price
+    // (e.g. $0.72/sheet for paper towels). Keep primary_price first.
     const price = parsePrice(result.primary_price ?? result.price ?? result.sale_price);
+    const priceSource = result.primary_price !== undefined ? "primary_price" : result.price !== undefined ? "price" : "sale_price";
+    console.log(`[walmart] [price-source] "${name}": using ${priceSource} → $${price ?? "null"}`);
     const resultUrl = (typeof result.url === "string" && result.url) ? result.url
                     : (typeof result.link === "string" && result.link) ? result.link
                     : null;

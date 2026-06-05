@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { parseSize, toComparableSize } from "@/lib/utils/parseSize";
-import { extractVariantLabel } from "@/lib/scrapers/filters";
+import { extractVariantLabel, VARIANT_GROUPS } from "@/lib/scrapers/filters";
 import FeedbackForm from "@/app/components/FeedbackForm";
 
 type GroceryItem = { name: string; quantity: number; unit: string; pricePaid?: number | null };
@@ -118,6 +118,30 @@ function buildWalmartCartUrl(items: PricedItem[]): string | null {
   return url;
 }
 
+// Given both stores' variant lists, return the initial indexes that best match a
+// shared variant keyword. When Amazon[0] contains "olive oil" and Walmart has an
+// "olive oil" candidate at index 2, Walmart defaults to 2 instead of 0.
+function findDefaultVariantIndexes(
+  amazonVariants: { productName: string }[],
+  walmartVariants: { productName: string }[]
+): { amazonIdx: number; walmartIdx: number } {
+  if (amazonVariants.length < 2 && walmartVariants.length < 2) return { amazonIdx: 0, walmartIdx: 0 };
+  const keywords = VARIANT_GROUPS.flat().sort((a, b) => b.length - a.length);
+  const findKeyword = (name: string) => keywords.find((k) => name.toLowerCase().includes(k)) ?? null;
+
+  const keyA = findKeyword(amazonVariants[0]?.productName ?? "");
+  if (keyA) {
+    const wIdx = walmartVariants.findIndex((v) => v.productName.toLowerCase().includes(keyA));
+    if (wIdx > 0) return { amazonIdx: 0, walmartIdx: wIdx };
+  }
+  const keyW = findKeyword(walmartVariants[0]?.productName ?? "");
+  if (keyW) {
+    const aIdx = amazonVariants.findIndex((v) => v.productName.toLowerCase().includes(keyW));
+    if (aIdx > 0) return { amazonIdx: aIdx, walmartIdx: 0 };
+  }
+  return { amazonIdx: 0, walmartIdx: 0 };
+}
+
 function PricedItemCard({
   item,
   selected,
@@ -133,10 +157,7 @@ function PricedItemCard({
   onBulkToggle: (v: "single" | "bulk") => void;
   receiptStore?: string | null;
 }) {
-  const [amazonVariantIdx, setAmazonVariantIdx] = useState(0);
-  const [walmartVariantIdx, setWalmartVariantIdx] = useState(0);
-
-  // Derive the selected variant for each store (fallback to primary fields if no candidates)
+  // Derive variant lists first so they can seed the default index matching
   const amazonVariants: AmazonVariant[] = item.amazon.candidates?.length
     ? item.amazon.candidates
     : [{ price: item.amazon.price, productName: item.amazon.productName, asin: item.amazon.asin,
@@ -146,6 +167,13 @@ function PricedItemCard({
     ? item.walmart.candidates
     : [{ price: item.walmart.price, productName: item.walmart.productName,
          url: item.walmart.url, imageUrl: item.walmart.imageUrl }];
+
+  const [amazonVariantIdx, setAmazonVariantIdx] = useState(
+    () => findDefaultVariantIndexes(amazonVariants, walmartVariants).amazonIdx
+  );
+  const [walmartVariantIdx, setWalmartVariantIdx] = useState(
+    () => findDefaultVariantIndexes(amazonVariants, walmartVariants).walmartIdx
+  );
 
   const selAmazon = amazonVariants[Math.min(amazonVariantIdx, amazonVariants.length - 1)];
   const selWalmart = walmartVariants[Math.min(walmartVariantIdx, walmartVariants.length - 1)];
@@ -170,6 +198,12 @@ function PricedItemCard({
   const walmartNorm = toComparableSize(walmartUnit);
   const amazonNormPPU = amazonNorm && effectiveAmazon.price !== null ? effectiveAmazon.price / amazonNorm.quantity : null;
   const walmartNormPPU = walmartNorm && effectiveWalmart.price !== null ? effectiveWalmart.price / walmartNorm.quantity : null;
+
+  useEffect(() => {
+    console.log('[variant-switch] price:', effectiveWalmart.price);
+    console.log('[variant-switch] productName:', effectiveWalmart.productName);
+    console.log('[variant-switch] walmartNormPPU:', walmartNormPPU);
+  }, [walmartVariantIdx]); // eslint-disable-line react-hooks/exhaustive-deps
   const canCompare = !item.sizeMismatch && amazonNormPPU !== null && walmartNormPPU !== null && amazonNorm!.unit === walmartNorm!.unit;
   // Line 2: pure store-vs-store per-unit comparison — independent of pricePaid gating
   const amazonVsWalmartPct = canCompare && amazonNormPPU! < walmartNormPPU!
@@ -267,21 +301,24 @@ function PricedItemCard({
           </div>
           {/* Variant pills */}
           {amazonVariants.length >= 2 && (
-            <div className="flex flex-wrap gap-1 mb-2">
-              {amazonVariants.map((_, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); e.preventDefault(); setAmazonVariantIdx(idx); }}
-                  className={`text-[9px] px-2 py-0.5 rounded border transition ${
-                    amazonVariantIdx === idx
-                      ? "border-[#22c55e] bg-[#22c55e]/10 text-[#22c55e]"
-                      : "border-[#334155] text-[#475569] hover:border-[#475569]"
-                  }`}
-                >
-                  {amazonPillLabels[idx]}
-                </button>
-              ))}
+            <div className="mb-2">
+              <p className="text-white text-xs mb-1">Pick your variant:</p>
+              <div className="flex flex-wrap gap-1.5">
+                {amazonVariants.map((_, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); e.preventDefault(); setAmazonVariantIdx(idx); }}
+                    className={`text-sm px-3 py-1.5 rounded border transition ${
+                      amazonVariantIdx === idx
+                        ? "border-[#22c55e] bg-[#22c55e] text-white font-medium"
+                        : "border-white/40 text-white/70 hover:border-white/60"
+                    }`}
+                  >
+                    {amazonPillLabels[idx]}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
@@ -388,21 +425,24 @@ function PricedItemCard({
 
           {/* Variant pills */}
           {walmartVariants.length >= 2 && (
-            <div className="flex flex-wrap gap-1 mb-2">
-              {walmartVariants.map((_, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); e.preventDefault(); setWalmartVariantIdx(idx); }}
-                  className={`text-[9px] px-2 py-0.5 rounded border transition ${
-                    walmartVariantIdx === idx
-                      ? "border-[#22c55e] bg-[#22c55e]/10 text-[#22c55e]"
-                      : "border-[#334155] text-[#475569] hover:border-[#475569]"
-                  }`}
-                >
-                  {walmartPillLabels[idx]}
-                </button>
-              ))}
+            <div className="mb-2">
+              <p className="text-white text-xs mb-1">Pick your variant:</p>
+              <div className="flex flex-wrap gap-1.5">
+                {walmartVariants.map((_, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); e.preventDefault(); setWalmartVariantIdx(idx); }}
+                    className={`text-sm px-3 py-1.5 rounded border transition ${
+                      walmartVariantIdx === idx
+                        ? "border-[#22c55e] bg-[#22c55e] text-white font-medium"
+                        : "border-white/40 text-white/70 hover:border-white/60"
+                    }`}
+                  >
+                    {walmartPillLabels[idx]}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 

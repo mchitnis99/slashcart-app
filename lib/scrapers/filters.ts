@@ -115,7 +115,7 @@ export function isStoreBrand(productName: string): boolean {
 
 // Variant groups: words within a group are mutually exclusive.
 // If the query contains one, the product must contain that same one (not a different one).
-const VARIANT_GROUPS: string[][] = [
+export const VARIANT_GROUPS: string[][] = [
   // Personal care scents / formulas
   ["aloe", "honey", "lavender", "cedar", "cedarwood", "rose", "rosemary",
    "mint", "eucalyptus", "citrus", "vanilla", "coconut", "shea", "argan", "tea tree",
