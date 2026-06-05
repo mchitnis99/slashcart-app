@@ -7,23 +7,18 @@ const supabase = createClient(
 
 // Only raw scraped fields are cached — no derived values (e.g. annualSavings).
 // Derived values are always recomputed at read time so logic changes take effect immediately.
+type AmazonCachedCandidate = {
+  price: number | null; productName: string; asin: string | null;
+  imageUrl?: string | null; regularPrice: number | null;
+  bulkPrice: number | null; bulkQuantity: number | null; bulkAsin: string | null;
+};
+type WalmartCachedCandidate = {
+  price: number | null; productName: string; url?: string | null; imageUrl?: string | null;
+};
+
 type CachedPriceData = {
-  amazon: {
-    price: number | null;
-    productName: string;
-    asin: string | null;
-    imageUrl?: string | null;
-    regularPrice: number | null;
-    bulkPrice: number | null;
-    bulkQuantity: number | null;
-    bulkAsin: string | null;
-  } | null;
-  walmart: {
-    price: number | null;
-    productName: string;
-    url?: string | null;
-    imageUrl?: string | null;
-  } | null;
+  amazon: (AmazonCachedCandidate & { candidates?: AmazonCachedCandidate[] }) | null;
+  walmart: (WalmartCachedCandidate & { candidates?: WalmartCachedCandidate[] }) | null;
 };
 
 export async function getCachedPrice(searchTerm: string): Promise<CachedPriceData | null> {

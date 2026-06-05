@@ -153,6 +153,29 @@ export function passesVariantCheck(
   return null;
 }
 
+// Extract a short display label from a product name for use as a variant pill label.
+// Checks known variant phrases first; falls back to the first two words.
+export function extractVariantLabel(productName: string): string {
+  const PATTERNS: RegExp[] = [
+    /\bolive\s+oil\b/i, /\bspring\s+water\b/i, /\bmixed\s+berry\b/i,
+    /\bfragrance[\s-]free\b/i, /\btea\s+tree\b/i, /\bextra\s+virgin\b/i,
+    /\bstrawberry\b/i, /\braspberry\b/i, /\bblueberry\b/i, /\bapricot\b/i,
+    /\bgoji\b/i, /\bsuperfruit\b/i, /\boregano\b/i, /\blemon\b/i, /\bgarlic\b/i,
+    /\baloe\b/i, /\bhoney\b/i, /\blavender\b/i, /\bcedarwood\b/i,
+    /\bunscented\b/i, /\boriginal\b/i, /\blupini\b/i, /\bcannellini\b/i,
+    /\bkidney\b/i, /\bchickpea\b/i, /\bpinto\b/i,
+    /\d+(?:\.\d+)?[\s\-]*fl[\s\-]*oz\b/i,
+    /\d+(?:\.\d+)?[\s\-]*oz\b/i,
+    /\d+(?:\.\d+)?[\s\-]*lb\b/i,
+    /\d+(?:\.\d+)?[\s\-]*count\b/i,
+  ];
+  for (const p of PATTERNS) {
+    const m = productName.match(p);
+    if (m) return m[0].trim().replace(/\b\w/g, (c) => c.toUpperCase());
+  }
+  return productName.split(/\s+/).slice(0, 2).join(" ");
+}
+
 // Capitalised words in the query (length > 2, not a stop word) are treated as brand names.
 export function extractBrands(query: string): string[] {
   return query

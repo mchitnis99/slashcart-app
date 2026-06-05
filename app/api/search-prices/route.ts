@@ -11,15 +11,16 @@ type GroceryItem = {
   pricePaid?: number | null;
 };
 
-type StoreResult = {
+type StoreResultBase = {
   price: number | null;
   productName: string;
   url?: string | null;
   imageUrl?: string | null;
 };
+type StoreResult = StoreResultBase & { candidates?: StoreResultBase[] };
 
 // Raw scraped fields only — matches what's stored in the Supabase cache.
-type AmazonRaw = {
+type AmazonRawBase = {
   price: number | null;
   productName: string;
   asin: string | null;
@@ -29,6 +30,7 @@ type AmazonRaw = {
   bulkQuantity: number | null;
   bulkAsin: string | null;
 };
+type AmazonRaw = AmazonRawBase & { candidates?: AmazonRawBase[] };
 
 // Enriched type returned to the client — includes derived annualSavings.
 type AmazonStoreResult = AmazonRaw & {
@@ -67,17 +69,22 @@ function toAmazonStoreResult(raw: AmazonRaw, sizeMismatch: boolean): AmazonStore
 async function tryAmazonScrape(itemName: string, pricePaid?: number | null): Promise<AmazonRaw | null> {
   try {
     const { scrapeAmazonPrice } = await import("@/lib/scrapers/amazon");
-    const result = await scrapeAmazonPrice(itemName, pricePaid ?? undefined);
-    if (!result) return null;
+    const results = await scrapeAmazonPrice(itemName, pricePaid ?? undefined);
+    if (!results || results.length === 0) return null;
+    const primary = results[0];
     return {
-      price: result.price,
-      productName: result.name,
-      asin: result.asin,
-      imageUrl: result.imageUrl,
-      regularPrice: result.regularPrice,
-      bulkPrice: result.bulkPrice,
-      bulkQuantity: result.bulkQuantity,
-      bulkAsin: result.bulkAsin,
+      price: primary.price,
+      productName: primary.name,
+      asin: primary.asin,
+      imageUrl: primary.imageUrl,
+      regularPrice: primary.regularPrice,
+      bulkPrice: primary.bulkPrice,
+      bulkQuantity: primary.bulkQuantity,
+      bulkAsin: primary.bulkAsin,
+      candidates: results.map((r) => ({
+        price: r.price, productName: r.name, asin: r.asin, imageUrl: r.imageUrl ?? null,
+        regularPrice: r.regularPrice, bulkPrice: r.bulkPrice, bulkQuantity: r.bulkQuantity, bulkAsin: r.bulkAsin,
+      })),
     };
   } catch (err) {
     console.error(`[search-prices] Amazon error:`, err);
@@ -88,9 +95,13 @@ async function tryAmazonScrape(itemName: string, pricePaid?: number | null): Pro
 async function tryWalmartScrape(itemName: string, pricePaid?: number | null): Promise<StoreResult | null> {
   try {
     const { scrapeWalmartPrice } = await import("@/lib/scrapers/walmart");
-    const result = await scrapeWalmartPrice(itemName, pricePaid ?? undefined);
-    if (!result) return null;
-    return { price: result.price, productName: result.name, url: result.url, imageUrl: result.imageUrl };
+    const results = await scrapeWalmartPrice(itemName, pricePaid ?? undefined);
+    if (!results || results.length === 0) return null;
+    const primary = results[0];
+    return {
+      price: primary.price, productName: primary.name, url: primary.url, imageUrl: primary.imageUrl,
+      candidates: results.map((r) => ({ price: r.price, productName: r.name, url: r.url, imageUrl: r.imageUrl ?? null })),
+    };
   } catch (err) {
     console.error(`[search-prices] Walmart error:`, err);
     return null;
@@ -109,6 +120,7 @@ const EMPTY_AMAZON_RAW: AmazonRaw = {
   bulkPrice: null,
   bulkQuantity: null,
   bulkAsin: null,
+  candidates: [],
 };
 
 export async function POST(request: Request) {
@@ -126,8 +138,12 @@ export async function POST(request: Request) {
 
     if (cached) {
       console.log(`[cache] HIT: "${cacheKey}"`);
-      const cachedAmazonRaw: AmazonRaw = cached.amazon ?? { ...EMPTY_AMAZON_RAW, productName: item.name };
-      const cachedWalmart = cached.walmart ?? { price: null, productName: item.name };
+      const cachedAmazonRaw: AmazonRaw = cached.amazon
+        ? { ...cached.amazon, candidates: cached.amazon.candidates ?? [{ ...cached.amazon }] }
+        : { ...EMPTY_AMAZON_RAW, productName: item.name };
+      const cachedWalmart: StoreResult = cached.walmart
+        ? { ...cached.walmart, candidates: cached.walmart.candidates ?? [{ ...cached.walmart }] }
+        : { price: null, productName: item.name };
       const amazonSize = parseSize(cachedAmazonRaw.productName, "Amazon");
       console.log("[parseSize]", cachedAmazonRaw.productName, "→", amazonSize?.quantity, amazonSize?.unit);
       const sizeMismatch = checkSizeMismatch(

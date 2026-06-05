@@ -4,17 +4,19 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { parseSize, toComparableSize } from "@/lib/utils/parseSize";
+import { extractVariantLabel } from "@/lib/scrapers/filters";
 import FeedbackForm from "@/app/components/FeedbackForm";
 
 type GroceryItem = { name: string; quantity: number; unit: string; pricePaid?: number | null };
-type StoreResult = { price: number | null; productName: string; url?: string | null; imageUrl?: string | null };
-type AmazonStoreResult = StoreResult & {
-  asin: string | null;
-  regularPrice: number | null;
-  bulkPrice: number | null;
-  bulkQuantity: number | null;
-  bulkAsin: string | null;
+type WalmartVariant = { price: number | null; productName: string; url?: string | null; imageUrl?: string | null };
+type AmazonVariant = {
+  price: number | null; productName: string; asin: string | null; imageUrl?: string | null;
+  regularPrice: number | null; bulkPrice: number | null; bulkQuantity: number | null; bulkAsin: string | null;
+};
+type StoreResult = WalmartVariant & { candidates?: WalmartVariant[] };
+type AmazonStoreResult = AmazonVariant & {
   annualSavings: number | null;
+  candidates?: AmazonVariant[];
 };
 type PricedItem = GroceryItem & {
   amazon: AmazonStoreResult;
@@ -104,8 +106,29 @@ function PricedItemCard({
   onBulkToggle: (v: "single" | "bulk") => void;
   receiptStore?: string | null;
 }) {
-  const amazonUnit = item.amazon.productName ? parseSize(item.amazon.productName) : null;
-  const walmartUnit = item.walmart.productName ? parseSize(item.walmart.productName) : null;
+  const [amazonVariantIdx, setAmazonVariantIdx] = useState(0);
+  const [walmartVariantIdx, setWalmartVariantIdx] = useState(0);
+
+  // Derive the selected variant for each store (fallback to primary fields if no candidates)
+  const amazonVariants: AmazonVariant[] = item.amazon.candidates?.length
+    ? item.amazon.candidates
+    : [{ price: item.amazon.price, productName: item.amazon.productName, asin: item.amazon.asin,
+         imageUrl: item.amazon.imageUrl, regularPrice: item.amazon.regularPrice,
+         bulkPrice: item.amazon.bulkPrice, bulkQuantity: item.amazon.bulkQuantity, bulkAsin: item.amazon.bulkAsin }];
+  const walmartVariants: WalmartVariant[] = item.walmart.candidates?.length
+    ? item.walmart.candidates
+    : [{ price: item.walmart.price, productName: item.walmart.productName,
+         url: item.walmart.url, imageUrl: item.walmart.imageUrl }];
+
+  const selAmazon = amazonVariants[Math.min(amazonVariantIdx, amazonVariants.length - 1)];
+  const selWalmart = walmartVariants[Math.min(walmartVariantIdx, walmartVariants.length - 1)];
+
+  // Override item.amazon/walmart fields with selected variant so all downstream logic is consistent
+  const effectiveAmazon = { ...item.amazon, ...selAmazon };
+  const effectiveWalmart = { ...item.walmart, ...selWalmart };
+
+  const amazonUnit = effectiveAmazon.productName ? parseSize(effectiveAmazon.productName) : null;
+  const walmartUnit = effectiveWalmart.productName ? parseSize(effectiveWalmart.productName) : null;
 
   const amazonPricePerUnit =
     amazonUnit && item.amazon.price !== null ? item.amazon.price / amazonUnit.quantity : null;
@@ -113,21 +136,14 @@ function PricedItemCard({
     walmartUnit && item.walmart.price !== null ? item.walmart.price / walmartUnit.quantity : null;
 
   const { amazonCheapest, walmartCheapest } = getWinners(item);
-  const recommendedPrice = amazonCheapest ? item.amazon.price : item.walmart.price;
+  const recommendedPrice = amazonCheapest ? effectiveAmazon.price : effectiveWalmart.price;
 
   // Normalized PPU for cross-store savings % (same unit after lb→oz etc. conversion)
   const amazonNorm = toComparableSize(amazonUnit);
   const walmartNorm = toComparableSize(walmartUnit);
-  const amazonNormPPU = amazonNorm && item.amazon.price !== null ? item.amazon.price / amazonNorm.quantity : null;
-  const walmartNormPPU = walmartNorm && item.walmart.price !== null ? item.walmart.price / walmartNorm.quantity : null;
+  const amazonNormPPU = amazonNorm && effectiveAmazon.price !== null ? effectiveAmazon.price / amazonNorm.quantity : null;
+  const walmartNormPPU = walmartNorm && effectiveWalmart.price !== null ? effectiveWalmart.price / walmartNorm.quantity : null;
   const canCompare = !item.sizeMismatch && amazonNormPPU !== null && walmartNormPPU !== null && amazonNorm!.unit === walmartNorm!.unit;
-  console.log(
-    `[ppu] "${item.name}" | amazon: "${item.amazon.productName}" → ` +
-    `size=${amazonUnit?.quantity ?? "null"} unit=${amazonUnit?.unit ?? "null"} normPPU=${amazonNormPPU !== null ? `$${amazonNormPPU.toFixed(4)}/${amazonNorm!.unit}` : "null"} | ` +
-    `walmart: "${item.walmart.productName}" → ` +
-    `size=${walmartUnit?.quantity ?? "null"} unit=${walmartUnit?.unit ?? "null"} normPPU=${walmartNormPPU !== null ? `$${walmartNormPPU.toFixed(4)}/${walmartNorm!.unit}` : "null"} | ` +
-    `canCompare=${canCompare}`
-  );
   // Line 2: pure store-vs-store per-unit comparison — independent of pricePaid gating
   const amazonVsWalmartPct = canCompare && amazonNormPPU! < walmartNormPPU!
     ? Math.round((1 - amazonNormPPU! / walmartNormPPU!) * 100)
@@ -137,39 +153,28 @@ function PricedItemCard({
     : null;
   // Line 1: savings vs receipt price (only when store price < pricePaid)
   const paidRef = item.pricePaid && item.pricePaid > 0 ? item.pricePaid : null;
-  const amazonVsReceiptPct = paidRef && item.amazon.price !== null && item.amazon.price < paidRef
-    ? Math.round(((paidRef - item.amazon.price) / paidRef) * 100)
+  const amazonVsReceiptPct = paidRef && effectiveAmazon.price !== null && effectiveAmazon.price < paidRef
+    ? Math.round(((paidRef - effectiveAmazon.price) / paidRef) * 100)
     : null;
-  const walmartVsReceiptPct = paidRef && item.walmart.price !== null && item.walmart.price < paidRef
-    ? Math.round(((paidRef - item.walmart.price) / paidRef) * 100)
+  const walmartVsReceiptPct = paidRef && effectiveWalmart.price !== null && effectiveWalmart.price < paidRef
+    ? Math.round(((paidRef - effectiveWalmart.price) / paidRef) * 100)
     : null;
 
-  const hasBulk =
-    item.amazon.bulkPrice !== null &&
-    item.amazon.bulkQuantity !== null;
-
-  const bulkPerUnit =
-    item.amazon.bulkPrice !== null && item.amazon.bulkQuantity !== null
-      ? item.amazon.bulkPrice / item.amazon.bulkQuantity
-      : null;
+  const hasBulk = effectiveAmazon.bulkPrice !== null && effectiveAmazon.bulkQuantity !== null;
+  const bulkPerUnit = effectiveAmazon.bulkPrice !== null && effectiveAmazon.bulkQuantity !== null
+    ? effectiveAmazon.bulkPrice / effectiveAmazon.bulkQuantity
+    : null;
 
   const checkedLabel = `Checked ${new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
 
-
   const amazonBuyHref =
-    bulkSelected === "bulk" && item.amazon.bulkAsin
-      ? `https://www.amazon.com/dp/${item.amazon.bulkAsin}?tag=slashcart-20`
-      : item.amazon.asin
-      ? `https://www.amazon.com/dp/${item.amazon.asin}?tag=slashcart-20`
+    bulkSelected === "bulk" && effectiveAmazon.bulkAsin
+      ? `https://www.amazon.com/dp/${effectiveAmazon.bulkAsin}?tag=slashcart-20`
+      : effectiveAmazon.asin
+      ? `https://www.amazon.com/dp/${effectiveAmazon.asin}?tag=slashcart-20`
       : `https://www.amazon.com/s?k=${encodeURIComponent(item.name)}&i=grocery`;
-  const walmartBuyHref = item.walmart.url
-    ?? `https://www.walmart.com/search?q=${encodeURIComponent(item.walmart.productName || item.name)}`;
-
-  console.log(
-    `[buy-links] "${item.name}" | asin=${item.amazon.asin} bulkAsin=${item.amazon.bulkAsin} bulkSelected=${bulkSelected}\n` +
-    `  Amazon Buy → ${amazonBuyHref}\n` +
-    `  Walmart Buy → ${walmartBuyHref}`
-  );
+  const walmartBuyHref = effectiveWalmart.url
+    ?? `https://www.walmart.com/search?q=${encodeURIComponent(effectiveWalmart.productName || item.name)}`;
 
   return (
     <div className="rounded-xl border border-[#1e3050] bg-[#111827] px-3 py-3 sm:px-4 sm:py-4 overflow-hidden">
@@ -197,11 +202,11 @@ function PricedItemCard({
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3">
         {/* Amazon card — entire card is clickable */}
         <a
-          href={item.amazon.price !== null ? amazonBuyHref : undefined}
+          href={effectiveAmazon.price !== null ? amazonBuyHref : undefined}
           target="_blank"
           rel="noopener noreferrer"
           className={`block rounded-lg p-3 border overflow-hidden cursor-pointer ${amazonCheapest ? "border-[#22c55e]/50 bg-[#0a2018]" : "border-[#334155] bg-[#1a2d3f]"}`}
-          onClick={(e) => { if (item.amazon.price === null) e.preventDefault(); }}
+          onClick={(e) => { if (effectiveAmazon.price === null) e.preventDefault(); }}
         >
           <div className="flex items-center justify-between gap-1 mb-2 min-w-0">
             <div className="flex items-center gap-1.5 min-w-0">
@@ -231,16 +236,36 @@ function PricedItemCard({
               </div>
             )}
           </div>
+          {/* Variant pills */}
+          {amazonVariants.length >= 2 && (
+            <div className="flex flex-wrap gap-1 mb-2">
+              {amazonVariants.map((v, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setAmazonVariantIdx(idx); }}
+                  className={`text-[9px] px-2 py-0.5 rounded border transition ${
+                    amazonVariantIdx === idx
+                      ? "border-[#22c55e] bg-[#22c55e]/10 text-[#22c55e]"
+                      : "border-[#334155] text-[#475569] hover:border-[#475569]"
+                  }`}
+                >
+                  {extractVariantLabel(v.productName)}
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* Product image */}
           <div className="w-20 h-20 mb-2 rounded-md bg-[#0d1830] flex items-center justify-center overflow-hidden shrink-0">
-            {item.amazon.imageUrl ? (
-              <Image src={item.amazon.imageUrl} alt={item.amazon.productName} width={80} height={80} className="object-contain w-full h-full" unoptimized />
+            {effectiveAmazon.imageUrl ? (
+              <Image src={effectiveAmazon.imageUrl} alt={effectiveAmazon.productName} width={80} height={80} className="object-contain w-full h-full" unoptimized />
             ) : (
               <div className="w-full h-full bg-[#1a2d3f]" />
             )}
           </div>
 
-          {item.amazon.price !== null ? (
+          {effectiveAmazon.price !== null ? (
             <>
               {bulkSelected === "bulk" && hasBulk ? (
                 <>
@@ -250,23 +275,23 @@ function PricedItemCard({
                         ${bulkPerUnit.toFixed(2)}/unit
                       </p>
                       <p className="text-[#94a3b8] text-xs leading-none mb-1">
-                        ${item.amazon.bulkPrice!.toFixed(2)} · {item.amazon.bulkQuantity}-pack
+                        ${effectiveAmazon.bulkPrice!.toFixed(2)} · {effectiveAmazon.bulkQuantity}-pack
                       </p>
                     </>
                   ) : (
                     <p className={`font-bold text-xl leading-none mb-1 ${amazonCheapest ? "text-[#22c55e]" : "text-white"}`}>
-                      ${item.amazon.bulkPrice!.toFixed(2)}
-                      <span className="text-[#94a3b8] font-normal text-xs ml-1">{item.amazon.bulkQuantity}-pack</span>
+                      ${effectiveAmazon.bulkPrice!.toFixed(2)}
+                      <span className="text-[#94a3b8] font-normal text-xs ml-1">{effectiveAmazon.bulkQuantity}-pack</span>
                     </p>
                   )}
-                  {item.amazon.productName !== item.name && (
-                    <p className="text-[#64748b] text-[10px] truncate mb-1" title={item.amazon.productName}>
-                      {item.amazon.productName}
+                  {effectiveAmazon.productName !== item.name && (
+                    <p className="text-[#64748b] text-[10px] truncate mb-1" title={effectiveAmazon.productName}>
+                      {effectiveAmazon.productName}
                     </p>
                   )}
-                  {item.amazon.annualSavings !== null && item.amazon.annualSavings > 0 && (
+                  {effectiveAmazon.annualSavings !== null && effectiveAmazon.annualSavings > 0 && (
                     <p className="text-[#22c55e] text-[10px] font-medium bg-[#22c55e]/10 rounded px-1.5 py-0.5 inline-block mb-1 mt-0.5">
-                      Save ${item.amazon.annualSavings.toFixed(2)}/yr bulk
+                      Save ${effectiveAmazon.annualSavings.toFixed(2)}/yr bulk
                     </p>
                   )}
                 </>
@@ -278,18 +303,18 @@ function PricedItemCard({
                         ${amazonPricePerUnit.toFixed(2)}/{amazonUnit.unit}
                       </p>
                       <p className="text-[#94a3b8] text-xs leading-none mb-1">
-                        ${(item.amazon.regularPrice ?? item.amazon.price).toFixed(2)} · {amazonUnit.quantity} {amazonUnit.unit}
+                        ${(effectiveAmazon.regularPrice ?? effectiveAmazon.price).toFixed(2)} · {amazonUnit.quantity} {amazonUnit.unit}
                       </p>
                     </>
                   ) : (
                     <p className={`font-bold text-xl leading-none mb-1 ${amazonCheapest ? "text-[#22c55e]" : "text-white"}`}>
-                      ${(item.amazon.regularPrice ?? item.amazon.price).toFixed(2)}
+                      ${(effectiveAmazon.regularPrice ?? effectiveAmazon.price).toFixed(2)}
                       {amazonUnit && <span className="text-[#94a3b8] font-normal text-xs ml-1">· {amazonUnit.quantity} {amazonUnit.unit}</span>}
                     </p>
                   )}
-                  {item.amazon.productName !== item.name && (
-                    <p className="text-[#64748b] text-[10px] truncate mb-1" title={item.amazon.productName}>
-                      {item.amazon.productName}
+                  {effectiveAmazon.productName !== item.name && (
+                    <p className="text-[#64748b] text-[10px] truncate mb-1" title={effectiveAmazon.productName}>
+                      {effectiveAmazon.productName}
                     </p>
                   )}
                   {amazonVsReceiptPct !== null && amazonVsReceiptPct > 0 && (
@@ -317,11 +342,11 @@ function PricedItemCard({
 
         {/* Walmart card — entire card is clickable */}
         <a
-          href={item.walmart.price !== null ? walmartBuyHref : undefined}
+          href={effectiveWalmart.price !== null ? walmartBuyHref : undefined}
           target="_blank"
           rel="noopener noreferrer"
           className={`block rounded-lg p-3 border overflow-hidden cursor-pointer ${walmartCheapest ? "border-[#22c55e]/50 bg-[#0a2018]" : "border-[#334155] bg-[#1a2d3f]"}`}
-          onClick={(e) => { if (item.walmart.price === null) e.preventDefault(); }}
+          onClick={(e) => { if (effectiveWalmart.price === null) e.preventDefault(); }}
         >
           <div className="flex items-center gap-1.5 mb-2 min-w-0">
             <p className="text-[#94a3b8] text-xs font-medium shrink-0">Walmart</p>
@@ -331,16 +356,37 @@ function PricedItemCard({
               </span>
             )}
           </div>
+
+          {/* Variant pills */}
+          {walmartVariants.length >= 2 && (
+            <div className="flex flex-wrap gap-1 mb-2">
+              {walmartVariants.map((v, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setWalmartVariantIdx(idx); }}
+                  className={`text-[9px] px-2 py-0.5 rounded border transition ${
+                    walmartVariantIdx === idx
+                      ? "border-[#22c55e] bg-[#22c55e]/10 text-[#22c55e]"
+                      : "border-[#334155] text-[#475569] hover:border-[#475569]"
+                  }`}
+                >
+                  {extractVariantLabel(v.productName)}
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* Product image */}
           <div className="w-20 h-20 mb-2 rounded-md bg-[#0d1830] flex items-center justify-center overflow-hidden shrink-0">
-            {item.walmart.imageUrl ? (
-              <Image src={item.walmart.imageUrl} alt={item.walmart.productName} width={80} height={80} className="object-contain w-full h-full" unoptimized />
+            {effectiveWalmart.imageUrl ? (
+              <Image src={effectiveWalmart.imageUrl} alt={effectiveWalmart.productName} width={80} height={80} className="object-contain w-full h-full" unoptimized />
             ) : (
               <div className="w-full h-full bg-[#1a2d3f]" />
             )}
           </div>
 
-          {item.walmart.price !== null ? (
+          {effectiveWalmart.price !== null ? (
             <>
               {!item.sizeMismatch && walmartPricePerUnit !== null && walmartUnit ? (
                 <>
@@ -348,18 +394,18 @@ function PricedItemCard({
                     ${walmartPricePerUnit.toFixed(2)}/{walmartUnit.unit}
                   </p>
                   <p className="text-[#94a3b8] text-xs leading-none mb-1">
-                    ${item.walmart.price.toFixed(2)} · {walmartUnit.quantity} {walmartUnit.unit}
+                    ${effectiveWalmart.price.toFixed(2)} · {walmartUnit.quantity} {walmartUnit.unit}
                   </p>
                 </>
               ) : (
                 <p className={`font-bold text-xl leading-none mb-1 ${walmartCheapest ? "text-[#22c55e]" : "text-white"}`}>
-                  ${item.walmart.price.toFixed(2)}
+                  ${effectiveWalmart.price.toFixed(2)}
                   {walmartUnit && <span className="text-[#94a3b8] font-normal text-xs ml-1">· {walmartUnit.quantity} {walmartUnit.unit}</span>}
                 </p>
               )}
-              {item.walmart.productName !== item.name && (
-                <p className="text-[#64748b] text-[10px] truncate mb-1" title={item.walmart.productName}>
-                  {item.walmart.productName}
+              {effectiveWalmart.productName !== item.name && (
+                <p className="text-[#64748b] text-[10px] truncate mb-1" title={effectiveWalmart.productName}>
+                  {effectiveWalmart.productName}
                 </p>
               )}
               {walmartVsReceiptPct !== null && walmartVsReceiptPct > 0 && (
@@ -386,7 +432,7 @@ function PricedItemCard({
 
       <div className="mt-3 flex gap-2 w-full overflow-hidden">
         {(["amazon", "walmart"] as const).map((store) => {
-          const available = store === "amazon" ? item.amazon.price !== null : item.walmart.price !== null;
+          const available = store === "amazon" ? effectiveAmazon.price !== null : effectiveWalmart.price !== null;
           const active = selected === store;
           return (
             <button

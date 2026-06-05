@@ -5,7 +5,6 @@ import {
   passesBrandCheck,
   passesNegativeKeywords,
   getCategoryMinPrice,
-  passesVariantCheck,
 } from "@/lib/scrapers/filters";
 
 export type WalmartResult = {
@@ -25,7 +24,7 @@ function parsePrice(raw: unknown): number | null {
   return null;
 }
 
-export async function scrapeWalmartPrice(itemName: string, pricePaid?: number): Promise<WalmartResult | null> {
+export async function scrapeWalmartPrice(itemName: string, pricePaid?: number): Promise<WalmartResult[] | null> {
   const apiKey = process.env.SCRAPERAPI_KEY ?? "";
   const url =
     `https://api.scraperapi.com/structured/walmart/search` +
@@ -110,13 +109,7 @@ export async function scrapeWalmartPrice(itemName: string, pricePaid?: number): 
       continue;
     }
 
-    // Fix 1: variant check (same as Amazon)
-    const variantConflict = passesVariantCheck(name, itemName);
-    if (variantConflict !== null) {
-      console.log(`[walmart] VARIANT-SKIP: expected "${variantConflict.expectedVariant}", got "${variantConflict.foundVariant}" in "${name}" (query: "${itemName}")`);
-      continue;
-    }
-
+    // Variant check removed — all passing results are candidates; user picks via pill selector
     // Fix 2: hard-reject brand mismatches for branded queries
     const brandOk = passesBrandCheck(name, brands);
     if (!brandOk) {
@@ -136,31 +129,25 @@ export async function scrapeWalmartPrice(itemName: string, pricePaid?: number): 
     else         standard.push({ name, price, url: resultUrl, imageUrl: resultImageUrl });
   }
 
-  // Pick cheapest: standard → specialty → noBrand → tooBig → tooSmall
-  const pool = standard.length > 0 ? standard
-    : specialty.length > 0 ? specialty
-    : noBrand.length > 0 ? noBrand
-    : tooBig.length > 0 ? tooBig
-    : tooSmall;
-  if (pool.length === 0) {
+  // Collect top 3 cheapest from available pool
+  const allCandidates = [...standard, ...specialty, ...noBrand, ...tooBig, ...tooSmall]
+    .sort((a, b) => a.price - b.price);
+
+  if (allCandidates.length === 0) {
     console.error(`[walmart] No relevant priced results for "${itemName}". Response:`, JSON.stringify(data).slice(0, 500));
     return null;
   }
 
-  const best = pool.reduce((a, b) => (b.price < a.price ? b : a));
-  console.log(`[walmart] Selected: "${best.name}" @ $${best.price} (from ${standard.length} standard, ${specialty.length} specialty, ${noBrand.length} no-brand, ${tooBig.length} too-big, ${tooSmall.length} too-small)`);
+  const topCandidates = allCandidates.slice(0, 3);
+  const best = topCandidates[0];
+  console.log(`[walmart] Selected: "${best.name}" @ $${best.price} + ${topCandidates.length - 1} variant(s) (standard=${standard.length}, specialty=${specialty.length}, noBrand=${noBrand.length})`);
 
   if (!best.imageUrl) {
     const bestRaw = results.find((r) => String(r.name ?? r.title ?? itemName) === best.name);
     if (bestRaw) {
-      console.log(`[scraper] available image fields for "${best.name}":`, JSON.stringify({
-        image: bestRaw.image,
-        thumbnail: bestRaw.thumbnail,
-        img: bestRaw.img,
-        photo: bestRaw.photo,
-        picture: bestRaw.picture,
-      }));
+      console.log(`[scraper] available image fields for "${best.name}":`, JSON.stringify({ image: bestRaw.image, thumbnail: bestRaw.thumbnail, img: bestRaw.img, photo: bestRaw.photo, picture: bestRaw.picture }));
     }
   }
-  return { name: best.name, price: best.price, inStock: true, url: best.url, imageUrl: best.imageUrl };
+
+  return topCandidates.map((c) => ({ name: c.name, price: c.price, inStock: true, url: c.url, imageUrl: c.imageUrl }));
 }

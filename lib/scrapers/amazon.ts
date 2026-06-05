@@ -6,7 +6,6 @@ import {
   passesNegativeKeywords,
   getCategoryMinPrice,
   isStoreBrand,
-  passesVariantCheck,
 } from "@/lib/scrapers/filters";
 
 export type AmazonResult = {
@@ -45,7 +44,7 @@ function toStringOrNull(val: unknown): string | null {
   return null;
 }
 
-export async function scrapeAmazonPrice(itemName: string, pricePaid?: number): Promise<AmazonResult | null> {
+export async function scrapeAmazonPrice(itemName: string, pricePaid?: number): Promise<AmazonResult[] | null> {
   const apiKey = process.env.SCRAPERAPI_KEY ?? "";
   const url =
     `https://api.scraperapi.com/structured/amazon/search` +
@@ -134,13 +133,7 @@ export async function scrapeAmazonPrice(itemName: string, pricePaid?: number): P
       }
     }
 
-    // Rule 3: Variant mismatch (scent, formula, etc.)
-    const variantConflict = passesVariantCheck(title, itemName);
-    if (variantConflict !== null) {
-      console.log(`[amazon] [VARIANT-SKIP] expected "${variantConflict.expectedVariant}", got "${variantConflict.foundVariant}" in "${title}" (query: "${itemName}")`);
-      continue; // Rule 5: no fallback to wrong variant
-    }
-
+    // Variant check removed — all passing results are candidates; user picks via pill selector
     const special = isSpecialty(title, itemName);
     const asin = toStringOrNull(result.asin ?? result.product_id);
     console.log(`[amazon] [${special ? "SPECIALTY" : "PASS"}] "${title}" @ $${price} (query: "${itemName}")`);
@@ -148,45 +141,35 @@ export async function scrapeAmazonPrice(itemName: string, pricePaid?: number): P
     else         standard.push({ result, price, asin });
   }
 
-  // Rule 5: Branded queries get no wrong-brand/wrong-variant fallback.
-  //         Generic queries keep the full fallback chain.
-  let regularCandidate: Candidate | null = null;
-
+  // Collect ordered candidate pool (branded: no wrong-brand fallbacks; generic: full chain)
+  let pool: Candidate[];
   if (hasBrand) {
-    // Standard → specialty only. If both empty, return null — unavailable is better than wrong.
-    const pool = standard.length > 0 ? standard : specialty;
-    regularCandidate = pool.length > 0 ? pool.reduce((a, b) => (b.price < a.price ? b : a)) : null;
+    pool = [...standard, ...specialty].sort((a, b) => a.price - b.price);
   } else {
-    // Generic: standard → specialty → tooBig → tooSmall → first priced
-    const pool = standard.length > 0 ? standard
-      : specialty.length > 0 ? specialty
-      : tooBig.length > 0 ? tooBig
-      : tooSmall;
-    regularCandidate = pool.length > 0 ? pool.reduce((a, b) => (b.price < a.price ? b : a)) : null;
-
-    if (regularCandidate === null) {
+    const ordered = [...standard, ...specialty, ...tooBig, ...tooSmall].sort((a, b) => a.price - b.price);
+    if (ordered.length === 0) {
       for (const result of results) {
         const price = parsePrice(result.price);
-        if (price !== null) {
-          regularCandidate = { result, price, asin: toStringOrNull(result.asin ?? result.product_id) };
-          break;
-        }
+        if (price !== null) { ordered.push({ result, price, asin: toStringOrNull(result.asin ?? result.product_id) }); break; }
       }
     }
+    pool = ordered;
   }
 
-  if (regularCandidate === null) {
+  if (pool.length === 0) {
     console.log(`[amazon] No suitable result for "${itemName}" (hasBrand=${hasBrand}, standard=${standard.length}, specialty=${specialty.length})`);
     return null;
   }
 
-  const { result: regularResult, price: regularPrice, asin: regularAsin } = regularCandidate;
+  // Top 3 candidates; bulk pricing computed on the primary (cheapest) only
+  const topCandidates = pool.slice(0, 3);
+  const primaryCandidate = topCandidates[0];
+  const regularPrice = primaryCandidate.price;
+  const regularResult = primaryCandidate.result;
 
-  // Find cheapest bulk variant with a lower per-unit cost than regularPrice
   let bulkPrice: number | null = null;
   let bulkQuantity: number | null = null;
   let bulkAsin: string | null = null;
-
   for (const result of results) {
     const price = parsePrice(result.price);
     if (price === null) continue;
@@ -197,45 +180,34 @@ export async function scrapeAmazonPrice(itemName: string, pricePaid?: number): P
     const perUnit = price / qty;
     if (perUnit >= regularPrice) continue;
     const bestBulkPerUnit = bulkPrice !== null && bulkQuantity !== null ? bulkPrice / bulkQuantity : Infinity;
-    if (perUnit < bestBulkPerUnit) {
-      bulkPrice = price;
-      bulkQuantity = qty;
-      bulkAsin = toStringOrNull(result.asin ?? result.product_id);
-    }
+    if (perUnit < bestBulkPerUnit) { bulkPrice = price; bulkQuantity = qty; bulkAsin = toStringOrNull(result.asin ?? result.product_id); }
   }
 
-  const name = String(regularResult.name ?? itemName);
-  const imageUrl = (typeof regularResult.image === "string" && regularResult.image)
-    ? regularResult.image
-    : (typeof regularResult.thumbnail === "string" && regularResult.thumbnail)
-    ? regularResult.thumbnail
-    : null;
-  if (!imageUrl) {
-    console.log(`[scraper] available image fields for "${name}":`, JSON.stringify({
-      image: regularResult.image,
-      thumbnail: regularResult.thumbnail,
-      img: regularResult.img,
-      photo: regularResult.photo,
-      picture: regularResult.picture,
-    }));
-  }
+  const primaryName = String(regularResult.name ?? itemName);
   console.log(
-    `[amazon] Selected "${itemName}": ${name} @ $${regularPrice}` +
-    (bulkPrice !== null && bulkQuantity !== null
-      ? `, bulk: $${bulkPrice} (${bulkQuantity} units, $${(bulkPrice / bulkQuantity).toFixed(2)}/unit)`
-      : "") +
-    ` (from ${standard.length} standard, ${specialty.length} specialty, ${tooBig.length} too-big, ${tooSmall.length} too-small, branded=${hasBrand})`
+    `[amazon] Selected "${itemName}": ${primaryName} @ $${regularPrice}` +
+    (bulkPrice !== null && bulkQuantity !== null ? `, bulk: $${bulkPrice} (${bulkQuantity}-pack, $${(bulkPrice/bulkQuantity).toFixed(2)}/unit)` : "") +
+    ` + ${topCandidates.length - 1} variant(s) (standard=${standard.length}, specialty=${specialty.length}, branded=${hasBrand})`
   );
 
-  return {
-    name,
-    price: regularPrice,
-    inStock: true,
-    asin: regularAsin,
-    imageUrl,
-    regularPrice,
-    bulkPrice,
-    bulkQuantity,
-    bulkAsin,
-  };
+  return topCandidates.map((c, idx) => {
+    const name = String(c.result.name ?? itemName);
+    const imageUrl = (typeof c.result.image === "string" && c.result.image) ? c.result.image
+      : (typeof c.result.thumbnail === "string" && c.result.thumbnail) ? c.result.thumbnail
+      : null;
+    if (!imageUrl && idx === 0) {
+      console.log(`[scraper] available image fields for "${name}":`, JSON.stringify({ image: c.result.image, thumbnail: c.result.thumbnail, img: c.result.img, photo: c.result.photo, picture: c.result.picture }));
+    }
+    return {
+      name,
+      price: c.price,
+      inStock: true,
+      asin: c.asin,
+      imageUrl,
+      regularPrice: c.price,
+      bulkPrice: idx === 0 ? bulkPrice : null,
+      bulkQuantity: idx === 0 ? bulkQuantity : null,
+      bulkAsin: idx === 0 ? bulkAsin : null,
+    };
+  });
 }
