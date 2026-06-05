@@ -5,6 +5,7 @@ import {
   passesBrandCheck,
   passesNegativeKeywords,
   getCategoryMinPrice,
+  passesVariantCheck,
 } from "@/lib/scrapers/filters";
 
 export type WalmartResult = {
@@ -57,6 +58,7 @@ export async function scrapeWalmartPrice(itemName: string, pricePaid?: number): 
   console.log(`[walmart] Got ${results.length} results for "${itemName}" (pricePaid=${pricePaid ?? "none"})`);
 
   const brands = extractBrands(itemName);
+  const hasBrand = brands.length > 0;
   const categoryMin = getCategoryMinPrice(itemName);
 
   type Candidate = { name: string; price: number; url: string | null };
@@ -78,10 +80,7 @@ export async function scrapeWalmartPrice(itemName: string, pricePaid?: number): 
                     : (typeof result.link === "string" && result.link) ? result.link
                     : null;
 
-    if (!isRelevant(name, itemName)) {
-      console.log(`[walmart] [FAIL] "${name}" @ ${price !== null ? `$${price}` : "no price"} (query: "${itemName}")`);
-      continue;
-    }
+    if (!isRelevant(name, itemName, "walmart")) continue;
     if (price === null) continue;
 
     if (!passesNegativeKeywords(name, itemName, "walmart")) continue;
@@ -107,14 +106,30 @@ export async function scrapeWalmartPrice(itemName: string, pricePaid?: number): 
       continue;
     }
 
-    const brandOk = passesBrandCheck(name, brands);
-    const special = isSpecialty(name, itemName);
-    const label = !brandOk ? "BRAND-SKIP" : special ? "SPECIALTY" : "PASS";
-    console.log(`[walmart] [${label}] "${name}" @ $${price} (query: "${itemName}")`);
+    // Fix 1: variant check (same as Amazon)
+    const variantConflict = passesVariantCheck(name, itemName);
+    if (variantConflict !== null) {
+      console.log(`[walmart] VARIANT-SKIP: expected "${variantConflict.expectedVariant}", got "${variantConflict.foundVariant}" in "${name}" (query: "${itemName}")`);
+      continue;
+    }
 
-    if (!brandOk)     noBrand.push({ name, price, url: resultUrl });
-    else if (special) specialty.push({ name, price, url: resultUrl });
-    else              standard.push({ name, price, url: resultUrl });
+    // Fix 2: hard-reject brand mismatches for branded queries
+    const brandOk = passesBrandCheck(name, brands);
+    if (!brandOk) {
+      if (hasBrand) {
+        const inferredBrand = name.split(/\s+/).slice(0, 3).join(" ");
+        console.log(`[walmart] BRAND-HARD-REJECT: expected "${brands.join("/")}", got "${inferredBrand}" (query: "${itemName}")`);
+        continue;
+      } else {
+        noBrand.push({ name, price, url: resultUrl });
+        continue;
+      }
+    }
+
+    const special = isSpecialty(name, itemName);
+    console.log(`[walmart] [${special ? "SPECIALTY" : "PASS"}] "${name}" @ $${price} (query: "${itemName}")`);
+    if (special) specialty.push({ name, price, url: resultUrl });
+    else         standard.push({ name, price, url: resultUrl });
   }
 
   // Pick cheapest: standard → specialty → noBrand → tooBig → tooSmall

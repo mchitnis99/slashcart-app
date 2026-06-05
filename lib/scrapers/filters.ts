@@ -64,7 +64,7 @@ const REQUIRED_DESCRIPTORS: [string, string][] = [
     .map((s): [string, string] => [s, s]),
 ];
 
-export function isRelevant(productName: string, query: string): boolean {
+export function isRelevant(productName: string, query: string, store?: string): boolean {
   const keywords = query
     .toLowerCase()
     .split(/\s+/)
@@ -72,7 +72,14 @@ export function isRelevant(productName: string, query: string): boolean {
   if (keywords.length === 0) return true;
   const nameWordSet = new Set(productName.toLowerCase().split(/\W+/).filter(Boolean));
   const matchCount = keywords.filter((kw) => nameWordSet.has(kw)).length;
-  if (matchCount < Math.max(1, Math.ceil(keywords.length / 2))) return false;
+  const threshold = Math.max(1, Math.ceil(keywords.length * 0.7));
+  if (matchCount < threshold) {
+    if (store) {
+      const pct = Math.round((matchCount / keywords.length) * 100);
+      console.log(`[${store}] RELEVANCE-SKIP: ${pct}% match (${matchCount}/${keywords.length} keywords) for "${productName}" (query: "${query}")`);
+    }
+    return false;
+  }
 
   // Required descriptor check: if a specific descriptor appears in the query,
   // the corresponding word must appear in the product name.

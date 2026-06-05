@@ -95,10 +95,7 @@ export async function scrapeAmazonPrice(itemName: string, pricePaid?: number): P
 
     // Rule 4: log no-price results
     const price = parsePrice(result.price);
-    if (!isRelevant(title, itemName)) {
-      console.log(`[amazon] [FAIL] "${title}" @ ${price !== null ? `$${price}` : "no price"} (query: "${itemName}")`);
-      continue;
-    }
+    if (!isRelevant(title, itemName, "amazon")) continue;
     if (price === null) {
       console.log(`[amazon] [NO-PRICE] "${title}" (query: "${itemName}")`);
       continue;
