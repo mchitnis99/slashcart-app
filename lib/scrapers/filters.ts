@@ -123,7 +123,7 @@ const VARIANT_GROUPS: string[][] = [
   // Oral care flavors
   ["spearmint", "peppermint", "cinnamon", "bubblegum"],
   // Tuna / seafood packing medium (multi-word phrases listed before single words to win .find())
-  ["olive oil", "spring water", "oregano", "lemon", "garlic", "water"],
+  ["olive oil", "spring water", "sweet corn", "oregano", "lemon", "garlic", "water"],
   // Jam / spread flavor
   ["mixed berry", "strawberry", "raspberry", "apricot", "blueberry", "goji", "superfruit"],
   // Oil type (single-word — must appear as a whole word to avoid "olive" matching "olivewood")
@@ -154,25 +154,31 @@ export function passesVariantCheck(
 }
 
 // Extract a short display label from a product name for use as a variant pill label.
-// Checks known variant phrases first; falls back to the first two words.
+// Checks VARIANT_GROUPS first (longest phrases first to prefer "olive oil" over "oil"),
+// then falls back to a parseable size token, then the first two words.
 export function extractVariantLabel(productName: string): string {
-  const PATTERNS: RegExp[] = [
-    /\bolive\s+oil\b/i, /\bspring\s+water\b/i, /\bmixed\s+berry\b/i,
-    /\bfragrance[\s-]free\b/i, /\btea\s+tree\b/i, /\bextra\s+virgin\b/i,
-    /\bstrawberry\b/i, /\braspberry\b/i, /\bblueberry\b/i, /\bapricot\b/i,
-    /\bgoji\b/i, /\bsuperfruit\b/i, /\boregano\b/i, /\blemon\b/i, /\bgarlic\b/i,
-    /\baloe\b/i, /\bhoney\b/i, /\blavender\b/i, /\bcedarwood\b/i,
-    /\bunscented\b/i, /\boriginal\b/i, /\blupini\b/i, /\bcannellini\b/i,
-    /\bkidney\b/i, /\bchickpea\b/i, /\bpinto\b/i,
+  const nameLower = productName.toLowerCase();
+
+  // Flatten all variant group words, sort longest first so multi-word phrases win
+  const allVariants = VARIANT_GROUPS.flat().sort((a, b) => b.length - a.length);
+  for (const v of allVariants) {
+    if (nameLower.includes(v)) {
+      return v.split(" ").map((w) => w[0]?.toUpperCase() + w.slice(1)).join(" ");
+    }
+  }
+
+  // Fall back to size token
+  const SIZE_PATTERNS = [
     /\d+(?:\.\d+)?[\s\-]*fl[\s\-]*oz\b/i,
     /\d+(?:\.\d+)?[\s\-]*oz\b/i,
     /\d+(?:\.\d+)?[\s\-]*lb\b/i,
     /\d+(?:\.\d+)?[\s\-]*count\b/i,
   ];
-  for (const p of PATTERNS) {
+  for (const p of SIZE_PATTERNS) {
     const m = productName.match(p);
     if (m) return m[0].trim().replace(/\b\w/g, (c) => c.toUpperCase());
   }
+
   return productName.split(/\s+/).slice(0, 2).join(" ");
 }
 

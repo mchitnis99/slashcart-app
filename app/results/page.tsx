@@ -243,7 +243,7 @@ function PricedItemCard({
                 <button
                   key={idx}
                   type="button"
-                  onClick={(e) => { e.stopPropagation(); setAmazonVariantIdx(idx); }}
+                  onClick={(e) => { e.stopPropagation(); e.preventDefault(); setAmazonVariantIdx(idx); }}
                   className={`text-[9px] px-2 py-0.5 rounded border transition ${
                     amazonVariantIdx === idx
                       ? "border-[#22c55e] bg-[#22c55e]/10 text-[#22c55e]"
@@ -364,7 +364,7 @@ function PricedItemCard({
                 <button
                   key={idx}
                   type="button"
-                  onClick={(e) => { e.stopPropagation(); setWalmartVariantIdx(idx); }}
+                  onClick={(e) => { e.stopPropagation(); e.preventDefault(); setWalmartVariantIdx(idx); }}
                   className={`text-[9px] px-2 py-0.5 rounded border transition ${
                     walmartVariantIdx === idx
                       ? "border-[#22c55e] bg-[#22c55e]/10 text-[#22c55e]"
