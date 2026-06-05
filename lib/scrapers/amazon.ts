@@ -9,6 +9,7 @@ import {
   hasVariantKeyword,
   VARIANT_GROUPS,
 } from "@/lib/scrapers/filters";
+import { parseSize, toComparableSize } from "@/lib/utils/parseSize";
 
 // Returns the first variant group keyword found in text (longest phrases checked first).
 function extractVariantKeyword(text: string): string | null {
@@ -97,6 +98,7 @@ export async function scrapeAmazonPrice(itemName: string, pricePaid?: number, pr
   const brands = extractBrands(itemName);
   const hasBrand = brands.length > 0;
   const categoryMin = getCategoryMinPrice(itemName);
+  const queryNorm = toComparableSize(parseSize(searchQuery));
 
   type Candidate = { result: Record<string, unknown>; price: number; asin: string | null };
   const standard: Candidate[] = [];
@@ -119,6 +121,19 @@ export async function scrapeAmazonPrice(itemName: string, pricePaid?: number, pr
     }
 
     if (!passesNegativeKeywords(title, itemName, "amazon")) continue;
+
+    // Query size filter: when the query specifies a size, reject results whose parsed
+    // size differs by more than 20% (only when both sides have a parseable size).
+    if (queryNorm) {
+      const resultNorm = toComparableSize(parseSize(title));
+      if (resultNorm && resultNorm.unit === queryNorm.unit) {
+        const ratio = resultNorm.quantity / queryNorm.quantity;
+        if (ratio < 0.8 || ratio > 1.2) {
+          console.log(`[amazon] SIZE-REJECT: query specifies ${parseFloat(queryNorm.quantity.toFixed(2))}${queryNorm.unit}, result has ${parseFloat(resultNorm.quantity.toFixed(2))}${resultNorm.unit} ("${title}")`);
+          continue;
+        }
+      }
+    }
 
     // Size sanity checks
     if (pricePaid && price < pricePaid * 0.50) {

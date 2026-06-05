@@ -7,6 +7,7 @@ import {
   getCategoryMinPrice,
   hasVariantKeyword,
 } from "@/lib/scrapers/filters";
+import { parseSize, toComparableSize } from "@/lib/utils/parseSize";
 
 export type WalmartResult = {
   name: string;
@@ -61,6 +62,7 @@ export async function scrapeWalmartPrice(itemName: string, pricePaid?: number): 
   const brands = extractBrands(itemName);
   const hasBrand = brands.length > 0;
   const categoryMin = getCategoryMinPrice(itemName);
+  const queryNorm = toComparableSize(parseSize(itemName));
 
   type Candidate = { name: string; price: number; url: string | null; imageUrl: string | null };
   const standard: Candidate[] = [];
@@ -85,6 +87,19 @@ export async function scrapeWalmartPrice(itemName: string, pricePaid?: number): 
     if (price === null) continue;
 
     if (!passesNegativeKeywords(name, itemName, "walmart")) continue;
+
+    // Query size filter: when the query specifies a size, reject results whose parsed
+    // size differs by more than 20% (only when both sides have a parseable size).
+    if (queryNorm) {
+      const resultNorm = toComparableSize(parseSize(name));
+      if (resultNorm && resultNorm.unit === queryNorm.unit) {
+        const ratio = resultNorm.quantity / queryNorm.quantity;
+        if (ratio < 0.8 || ratio > 1.2) {
+          console.log(`[walmart] SIZE-REJECT: query specifies ${parseFloat(queryNorm.quantity.toFixed(2))}${queryNorm.unit}, result has ${parseFloat(resultNorm.quantity.toFixed(2))}${resultNorm.unit} ("${name}")`);
+          continue;
+        }
+      }
+    }
 
     // Sanity check: if price is < 50% of what the user paid, it's likely a travel/mini size
     if (pricePaid && price < pricePaid * 0.50) {
