@@ -54,11 +54,6 @@ function getWinners(item: PricedItem): { amazonCheapest: boolean; walmartCheapes
   }
 
   const canCompare = amazonNormPPU !== null && walmartNormPPU !== null && !!amazonNorm && !!walmartNorm && amazonNorm.unit === walmartNorm.unit;
-  console.log(
-    `[winners] "${item.name}" | amazon normPPU=${amazonNormPPU !== null ? `$${amazonNormPPU.toFixed(4)}/${amazonNorm!.unit}` : `null (productName="${item.amazon.productName}")`}` +
-    ` walmart normPPU=${walmartNormPPU !== null ? `$${walmartNormPPU.toFixed(4)}/${walmartNorm!.unit}` : `null (productName="${item.walmart.productName}")`}` +
-    ` canCompare=${canCompare} winner=${amazonCheapest ? "amazon" : walmartCheapest ? "walmart" : "none"}`
-  );
 
   return { amazonCheapest, walmartCheapest };
 }
@@ -104,17 +99,11 @@ function buildWalmartCartUrl(items: PricedItem[]): string | null {
       // parseInt strips any non-digit suffix (e.g. ":1" variant suffixes in some URLs)
       const numId = rawId ? parseInt(rawId, 10) : NaN;
       const id = !isNaN(numId) && numId > 0 ? String(numId) : null;
-      console.log(`[walmart-cart] item="${item.name}" url=${raw} rawId=${rawId} → id=${id ?? "NOT EXTRACTED"}`);
       return id;
     })
     .filter((id): id is string => id !== null);
-  console.log(`[walmart-cart] extracted ${ids.length}/${items.length} IDs:`, ids);
-  if (ids.length === 0) {
-    console.log("[walmart-cart] no IDs found — falling back to /cart");
-    return null;
-  }
+  if (ids.length === 0) return null;
   const url = `https://www.walmart.com/cart/add?items=${ids.map((id) => `${id}:1`).join(",")}`;
-  console.log("[walmart-cart] built URL:", url);
   return url;
 }
 
@@ -199,11 +188,6 @@ function PricedItemCard({
   const amazonNormPPU = amazonNorm && effectiveAmazon.price !== null ? effectiveAmazon.price / amazonNorm.quantity : null;
   const walmartNormPPU = walmartNorm && effectiveWalmart.price !== null ? effectiveWalmart.price / walmartNorm.quantity : null;
 
-  useEffect(() => {
-    console.log('[variant-switch] price:', effectiveWalmart.price);
-    console.log('[variant-switch] productName:', effectiveWalmart.productName);
-    console.log('[variant-switch] walmartNormPPU:', walmartNormPPU);
-  }, [walmartVariantIdx]); // eslint-disable-line react-hooks/exhaustive-deps
   const canCompare = !item.sizeMismatch && amazonNormPPU !== null && walmartNormPPU !== null && amazonNorm!.unit === walmartNorm!.unit;
   // Line 2: pure store-vs-store per-unit comparison — independent of pricePaid gating
   const amazonVsWalmartPct = canCompare && amazonNormPPU! < walmartNormPPU!
@@ -738,14 +722,6 @@ export default function ResultsPage() {
   const savingsPct = pantryReceiptTotal > 0
     ? Math.round((totalReceiptSavings / pantryReceiptTotal) * 100)
     : 0;
-
-  if (allLoaded) {
-    console.log('[savings] receiptTotal:', receiptTotal);
-    console.log('[savings] savingsReceiptTotal:', savingsReceiptTotal);
-    console.log('[savings] savingsSlashcartTotal:', savingsSlashcartTotal);
-    console.log('[savings] totalReceiptSavings:', totalReceiptSavings);
-    console.log('[savings] savingsEntries count:', savingsEntries.length);
-  }
 
   return (
     <main className="flex flex-col flex-1 w-full overflow-x-hidden px-3 py-6 sm:px-4 sm:py-10 max-w-2xl mx-auto">

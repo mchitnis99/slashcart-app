@@ -63,10 +63,6 @@ export async function scrapeAmazonPrice(itemName: string, pricePaid?: number, pr
     variantKeyword && !itemName.toLowerCase().includes(variantKeyword)
       ? `${itemName} ${variantKeyword}`
       : itemName;
-  if (searchQuery !== itemName) {
-    console.log(`[amazon] augmented query: "${itemName}" → "${searchQuery}" (variant="${variantKeyword}")`);
-  }
-
   const url =
     `https://api.scraperapi.com/structured/amazon/search` +
     `?api_key=${apiKey}&query=${encodeURIComponent(searchQuery)}&country=us`;
