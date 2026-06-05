@@ -53,6 +53,13 @@ function getWinners(item: PricedItem): { amazonCheapest: boolean; walmartCheapes
     if (item.walmart.price !== null && item.walmart.price >= item.pricePaid) walmartCheapest = false;
   }
 
+  const canCompare = amazonNormPPU !== null && walmartNormPPU !== null && !!amazonNorm && !!walmartNorm && amazonNorm.unit === walmartNorm.unit;
+  console.log(
+    `[winners] "${item.name}" | amazon normPPU=${amazonNormPPU !== null ? `$${amazonNormPPU.toFixed(4)}/${amazonNorm!.unit}` : `null (productName="${item.amazon.productName}")`}` +
+    ` walmart normPPU=${walmartNormPPU !== null ? `$${walmartNormPPU.toFixed(4)}/${walmartNorm!.unit}` : `null (productName="${item.walmart.productName}")`}` +
+    ` canCompare=${canCompare} winner=${amazonCheapest ? "amazon" : walmartCheapest ? "walmart" : "none"}`
+  );
+
   return { amazonCheapest, walmartCheapest };
 }
 
@@ -151,11 +158,11 @@ function PricedItemCard({
   const walmartUnit = effectiveWalmart.productName ? parseSize(effectiveWalmart.productName) : null;
 
   const amazonPricePerUnit =
-    amazonUnit && item.amazon.price !== null ? item.amazon.price / amazonUnit.quantity : null;
+    amazonUnit && effectiveAmazon.price !== null ? effectiveAmazon.price / amazonUnit.quantity : null;
   const walmartPricePerUnit =
-    walmartUnit && item.walmart.price !== null ? item.walmart.price / walmartUnit.quantity : null;
+    walmartUnit && effectiveWalmart.price !== null ? effectiveWalmart.price / walmartUnit.quantity : null;
 
-  const { amazonCheapest, walmartCheapest } = getWinners(item);
+  const { amazonCheapest, walmartCheapest } = getWinners({ ...item, amazon: effectiveAmazon, walmart: effectiveWalmart });
   const recommendedPrice = amazonCheapest ? effectiveAmazon.price : effectiveWalmart.price;
 
   // Normalized PPU for cross-store savings % (same unit after lb→oz etc. conversion)
