@@ -13,6 +13,7 @@ export type WalmartResult = {
   price: number;
   inStock: boolean;
   url: string | null;
+  imageUrl: string | null;
 };
 
 function parsePrice(raw: unknown): number | null {
@@ -61,7 +62,7 @@ export async function scrapeWalmartPrice(itemName: string, pricePaid?: number): 
   const hasBrand = brands.length > 0;
   const categoryMin = getCategoryMinPrice(itemName);
 
-  type Candidate = { name: string; price: number; url: string | null };
+  type Candidate = { name: string; price: number; url: string | null; imageUrl: string | null };
   const standard: Candidate[] = [];
   const specialty: Candidate[] = [];
   const noBrand: Candidate[] = [];
@@ -79,6 +80,9 @@ export async function scrapeWalmartPrice(itemName: string, pricePaid?: number): 
     const resultUrl = (typeof result.url === "string" && result.url) ? result.url
                     : (typeof result.link === "string" && result.link) ? result.link
                     : null;
+    const resultImageUrl = (typeof result.image === "string" && result.image) ? result.image
+                         : (typeof result.thumbnail === "string" && result.thumbnail) ? result.thumbnail
+                         : null;
 
     if (!isRelevant(name, itemName, "walmart")) continue;
     if (price === null) continue;
@@ -88,21 +92,21 @@ export async function scrapeWalmartPrice(itemName: string, pricePaid?: number): 
     // Sanity check: if price is < 50% of what the user paid, it's likely a travel/mini size
     if (pricePaid && price < pricePaid * 0.50) {
       console.log(`[walmart] [TOO-SMALL] "${name}" @ $${price} (pricePaid=$${pricePaid}, ${Math.round(price/pricePaid*100)}% of paid) (query: "${itemName}")`);
-      tooSmall.push({ name, price, url: resultUrl });
+      tooSmall.push({ name, price, url: resultUrl, imageUrl: resultImageUrl });
       continue;
     }
 
     // Category price floor: catches travel sizes even without pricePaid
     if (categoryMin !== null && price < categoryMin) {
       console.log(`[walmart] [TOO-SMALL] "${name}" @ $${price} (category floor $${categoryMin}) (query: "${itemName}")`);
-      tooSmall.push({ name, price, url: resultUrl });
+      tooSmall.push({ name, price, url: resultUrl, imageUrl: resultImageUrl });
       continue;
     }
 
     // Sanity check: if price is > 200% of what the user paid, it's likely a multi-pack or bulk
     if (pricePaid && price > pricePaid * 2.00) {
       console.log(`[walmart] [TOO-BIG] "${name}" @ $${price} (pricePaid=$${pricePaid}, ${Math.round(price/pricePaid*100)}% of paid) (query: "${itemName}")`);
-      tooBig.push({ name, price, url: resultUrl });
+      tooBig.push({ name, price, url: resultUrl, imageUrl: resultImageUrl });
       continue;
     }
 
@@ -121,15 +125,15 @@ export async function scrapeWalmartPrice(itemName: string, pricePaid?: number): 
         console.log(`[walmart] BRAND-HARD-REJECT: expected "${brands.join("/")}", got "${inferredBrand}" (query: "${itemName}")`);
         continue;
       } else {
-        noBrand.push({ name, price, url: resultUrl });
+        noBrand.push({ name, price, url: resultUrl, imageUrl: resultImageUrl });
         continue;
       }
     }
 
     const special = isSpecialty(name, itemName);
     console.log(`[walmart] [${special ? "SPECIALTY" : "PASS"}] "${name}" @ $${price} (query: "${itemName}")`);
-    if (special) specialty.push({ name, price, url: resultUrl });
-    else         standard.push({ name, price, url: resultUrl });
+    if (special) specialty.push({ name, price, url: resultUrl, imageUrl: resultImageUrl });
+    else         standard.push({ name, price, url: resultUrl, imageUrl: resultImageUrl });
   }
 
   // Pick cheapest: standard → specialty → noBrand → tooBig → tooSmall
@@ -145,5 +149,5 @@ export async function scrapeWalmartPrice(itemName: string, pricePaid?: number): 
 
   const best = pool.reduce((a, b) => (b.price < a.price ? b : a));
   console.log(`[walmart] Selected: "${best.name}" @ $${best.price} (from ${standard.length} standard, ${specialty.length} specialty, ${noBrand.length} no-brand, ${tooBig.length} too-big, ${tooSmall.length} too-small)`);
-  return { name: best.name, price: best.price, inStock: true, url: best.url };
+  return { name: best.name, price: best.price, inStock: true, url: best.url, imageUrl: best.imageUrl };
 }

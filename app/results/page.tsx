@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { parseSize, toComparableSize } from "@/lib/utils/parseSize";
 import FeedbackForm from "@/app/components/FeedbackForm";
 
 type GroceryItem = { name: string; quantity: number; unit: string; pricePaid?: number | null };
-type StoreResult = { price: number | null; productName: string; url?: string | null };
+type StoreResult = { price: number | null; productName: string; url?: string | null; imageUrl?: string | null };
 type AmazonStoreResult = StoreResult & {
   asin: string | null;
   regularPrice: number | null;
@@ -223,6 +224,15 @@ function PricedItemCard({
               </div>
             )}
           </div>
+          {/* Product image */}
+          <div className="w-20 h-20 mb-2 rounded-md bg-[#0d1830] flex items-center justify-center overflow-hidden shrink-0">
+            {item.amazon.imageUrl ? (
+              <Image src={item.amazon.imageUrl} alt={item.amazon.productName} width={80} height={80} className="object-contain w-full h-full" unoptimized />
+            ) : (
+              <div className="w-full h-full bg-[#1a2d3f]" />
+            )}
+          </div>
+
           {item.amazon.price !== null ? (
             <>
               {bulkSelected === "bulk" && hasBulk ? (
@@ -314,6 +324,15 @@ function PricedItemCard({
               </span>
             )}
           </div>
+          {/* Product image */}
+          <div className="w-20 h-20 mb-2 rounded-md bg-[#0d1830] flex items-center justify-center overflow-hidden shrink-0">
+            {item.walmart.imageUrl ? (
+              <Image src={item.walmart.imageUrl} alt={item.walmart.productName} width={80} height={80} className="object-contain w-full h-full" unoptimized />
+            ) : (
+              <div className="w-full h-full bg-[#1a2d3f]" />
+            )}
+          </div>
+
           {item.walmart.price !== null ? (
             <>
               {!item.sizeMismatch && walmartPricePerUnit !== null && walmartUnit ? (

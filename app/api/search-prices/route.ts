@@ -15,6 +15,7 @@ type StoreResult = {
   price: number | null;
   productName: string;
   url?: string | null;
+  imageUrl?: string | null;
 };
 
 // Raw scraped fields only — matches what's stored in the Supabase cache.
@@ -22,6 +23,7 @@ type AmazonRaw = {
   price: number | null;
   productName: string;
   asin: string | null;
+  imageUrl?: string | null;
   regularPrice: number | null;
   bulkPrice: number | null;
   bulkQuantity: number | null;
@@ -71,6 +73,7 @@ async function tryAmazonScrape(itemName: string, pricePaid?: number | null): Pro
       price: result.price,
       productName: result.name,
       asin: result.asin,
+      imageUrl: result.imageUrl,
       regularPrice: result.regularPrice,
       bulkPrice: result.bulkPrice,
       bulkQuantity: result.bulkQuantity,
@@ -87,7 +90,7 @@ async function tryWalmartScrape(itemName: string, pricePaid?: number | null): Pr
     const { scrapeWalmartPrice } = await import("@/lib/scrapers/walmart");
     const result = await scrapeWalmartPrice(itemName, pricePaid ?? undefined);
     if (!result) return null;
-    return { price: result.price, productName: result.name, url: result.url };
+    return { price: result.price, productName: result.name, url: result.url, imageUrl: result.imageUrl };
   } catch (err) {
     console.error(`[search-prices] Walmart error:`, err);
     return null;

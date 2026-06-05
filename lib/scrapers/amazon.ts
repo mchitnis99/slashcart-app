@@ -14,6 +14,7 @@ export type AmazonResult = {
   price: number;
   inStock: boolean;
   asin: string | null;
+  imageUrl: string | null;
   regularPrice: number | null;
   bulkPrice: number | null;
   bulkQuantity: number | null;
@@ -204,6 +205,11 @@ export async function scrapeAmazonPrice(itemName: string, pricePaid?: number): P
   }
 
   const name = String(regularResult.name ?? itemName);
+  const imageUrl = (typeof regularResult.image === "string" && regularResult.image)
+    ? regularResult.image
+    : (typeof regularResult.thumbnail === "string" && regularResult.thumbnail)
+    ? regularResult.thumbnail
+    : null;
   console.log(
     `[amazon] Selected "${itemName}": ${name} @ $${regularPrice}` +
     (bulkPrice !== null && bulkQuantity !== null
@@ -217,6 +223,7 @@ export async function scrapeAmazonPrice(itemName: string, pricePaid?: number): P
     price: regularPrice,
     inStock: true,
     asin: regularAsin,
+    imageUrl,
     regularPrice,
     bulkPrice,
     bulkQuantity,

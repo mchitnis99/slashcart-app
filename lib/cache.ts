@@ -12,6 +12,7 @@ type CachedPriceData = {
     price: number | null;
     productName: string;
     asin: string | null;
+    imageUrl?: string | null;
     regularPrice: number | null;
     bulkPrice: number | null;
     bulkQuantity: number | null;
@@ -21,6 +22,7 @@ type CachedPriceData = {
     price: number | null;
     productName: string;
     url?: string | null;
+    imageUrl?: string | null;
   } | null;
 };
 
