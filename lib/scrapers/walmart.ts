@@ -5,6 +5,7 @@ import {
   passesBrandCheck,
   passesNegativeKeywords,
   getCategoryMinPrice,
+  hasVariantKeyword,
 } from "@/lib/scrapers/filters";
 
 export type WalmartResult = {
@@ -138,7 +139,10 @@ export async function scrapeWalmartPrice(itemName: string, pricePaid?: number): 
     return null;
   }
 
-  const topCandidates = allCandidates.slice(0, 3);
+  const topCandidates: typeof allCandidates = [allCandidates[0]];
+  for (let i = 1; i < allCandidates.length && topCandidates.length < 3; i++) {
+    if (hasVariantKeyword(allCandidates[i].name)) topCandidates.push(allCandidates[i]);
+  }
   const best = topCandidates[0];
   console.log(`[walmart] Selected: "${best.name}" @ $${best.price} + ${topCandidates.length - 1} variant(s) (standard=${standard.length}, specialty=${specialty.length}, noBrand=${noBrand.length})`);
 

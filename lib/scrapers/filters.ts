@@ -153,6 +153,13 @@ export function passesVariantCheck(
   return null;
 }
 
+// Returns true if the product name contains at least one word from any variant group.
+// Used to gate whether a result qualifies as a meaningful variant candidate.
+export function hasVariantKeyword(productName: string): boolean {
+  const nameLower = productName.toLowerCase();
+  return VARIANT_GROUPS.flat().some((v) => nameLower.includes(v));
+}
+
 // Extract a short display label from a product name for use as a variant pill label.
 // Checks VARIANT_GROUPS first (longest phrases first to prefer "olive oil" over "oil"),
 // then falls back to a parseable size token, then the first two words.

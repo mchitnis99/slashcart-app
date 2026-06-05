@@ -6,6 +6,7 @@ import {
   passesNegativeKeywords,
   getCategoryMinPrice,
   isStoreBrand,
+  hasVariantKeyword,
 } from "@/lib/scrapers/filters";
 
 export type AmazonResult = {
@@ -161,8 +162,13 @@ export async function scrapeAmazonPrice(itemName: string, pricePaid?: number): P
     return null;
   }
 
-  // Top 3 candidates; bulk pricing computed on the primary (cheapest) only
-  const topCandidates = pool.slice(0, 3);
+  // Primary is always included; additional candidates only when they carry a recognizable
+  // variant keyword — prevents unrelated products from appearing as pill options.
+  const topCandidates: typeof pool = [pool[0]];
+  for (let i = 1; i < pool.length && topCandidates.length < 3; i++) {
+    const candidateTitle = String(pool[i].result.name ?? pool[i].result.title ?? itemName);
+    if (hasVariantKeyword(candidateTitle)) topCandidates.push(pool[i]);
+  }
   const primaryCandidate = topCandidates[0];
   const regularPrice = primaryCandidate.price;
   const regularResult = primaryCandidate.result;
