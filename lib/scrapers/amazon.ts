@@ -7,7 +7,15 @@ import {
   getCategoryMinPrice,
   isStoreBrand,
   hasVariantKeyword,
+  VARIANT_GROUPS,
 } from "@/lib/scrapers/filters";
+
+// Returns the first variant group keyword found in text (longest phrases checked first).
+function extractVariantKeyword(text: string): string | null {
+  const lower = text.toLowerCase();
+  const keywords = VARIANT_GROUPS.flat().sort((a, b) => b.length - a.length);
+  return keywords.find((k) => lower.includes(k)) ?? null;
+}
 
 export type AmazonResult = {
   name: string;
@@ -45,11 +53,23 @@ function toStringOrNull(val: unknown): string | null {
   return null;
 }
 
-export async function scrapeAmazonPrice(itemName: string, pricePaid?: number): Promise<AmazonResult[] | null> {
+export async function scrapeAmazonPrice(itemName: string, pricePaid?: number, preferredVariant?: string): Promise<AmazonResult[] | null> {
   const apiKey = process.env.SCRAPERAPI_KEY ?? "";
+
+  // Append a variant keyword to the search query when one is known but not already
+  // present in the item name (e.g. "Tonnino tuna" + "olive oil" → "Tonnino tuna olive oil").
+  const variantKeyword = extractVariantKeyword(itemName) ?? preferredVariant ?? null;
+  const searchQuery =
+    variantKeyword && !itemName.toLowerCase().includes(variantKeyword)
+      ? `${itemName} ${variantKeyword}`
+      : itemName;
+  if (searchQuery !== itemName) {
+    console.log(`[amazon] augmented query: "${itemName}" → "${searchQuery}" (variant="${variantKeyword}")`);
+  }
+
   const url =
     `https://api.scraperapi.com/structured/amazon/search` +
-    `?api_key=${apiKey}&query=${encodeURIComponent(itemName)}&country=us`;
+    `?api_key=${apiKey}&query=${encodeURIComponent(searchQuery)}&country=us`;
 
   let response: Response;
   try {

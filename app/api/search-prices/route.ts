@@ -9,6 +9,7 @@ type GroceryItem = {
   quantity: number;
   unit: string;
   pricePaid?: number | null;
+  preferredVariant?: string | null;
 };
 
 type StoreResultBase = {
@@ -66,10 +67,10 @@ function toAmazonStoreResult(raw: AmazonRaw, sizeMismatch: boolean): AmazonStore
   return { ...raw, annualSavings: sizeMismatch ? null : computeAnnualSavings(raw) };
 }
 
-async function tryAmazonScrape(itemName: string, pricePaid?: number | null): Promise<AmazonRaw | null> {
+async function tryAmazonScrape(itemName: string, pricePaid?: number | null, preferredVariant?: string | null): Promise<AmazonRaw | null> {
   try {
     const { scrapeAmazonPrice } = await import("@/lib/scrapers/amazon");
-    const results = await scrapeAmazonPrice(itemName, pricePaid ?? undefined);
+    const results = await scrapeAmazonPrice(itemName, pricePaid ?? undefined, preferredVariant ?? undefined);
     if (!results || results.length === 0) return null;
     const primary = results[0];
     return {
@@ -161,7 +162,7 @@ export async function POST(request: Request) {
 
     console.log(`[cache] MISS: "${cacheKey}"`);
     const [amazon, walmart] = await Promise.all([
-      tryAmazonScrape(item.name, item.pricePaid),
+      tryAmazonScrape(item.name, item.pricePaid, item.preferredVariant),
       tryWalmartScrape(item.name, item.pricePaid),
     ]);
 

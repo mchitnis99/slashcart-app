@@ -185,6 +185,9 @@ export default function GroceryInput() {
         <p className="mt-1.5 text-xs text-white/30 px-1">
           Works best for: canned goods, dry goods, cleaning supplies, personal care, and paper products
         </p>
+        <p className="mt-1 text-xs text-white/30 px-1">
+          💡 Tip: Be specific for best matches — include brand, size, and variant (e.g. &ldquo;Tonnino Yellowfin Tuna Fillets in Olive Oil 6.7oz&rdquo;, not just &ldquo;Tonnino tuna&rdquo;)
+        </p>
       </div>
 
       {error && (
