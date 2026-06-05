@@ -72,7 +72,7 @@ export function isRelevant(productName: string, query: string, store?: string): 
   if (keywords.length === 0) return true;
   const nameWordSet = new Set(productName.toLowerCase().split(/\W+/).filter(Boolean));
   const matchCount = keywords.filter((kw) => nameWordSet.has(kw)).length;
-  const threshold = Math.max(1, Math.ceil(keywords.length * 0.7));
+  const threshold = Math.max(1, Math.ceil(keywords.length / 2));
   if (matchCount < threshold) {
     if (store) {
       const pct = Math.round((matchCount / keywords.length) * 100);
