@@ -186,7 +186,7 @@ export default function GroceryInput() {
           Works best for: canned goods, dry goods, cleaning supplies, personal care, and paper products
         </p>
         <p className="mt-1 text-xs text-yellow-400/70 px-1">
-          💡 Tip: Be specific for best matches — include brand, size, and variant (e.g. &ldquo;Tonnino Yellowfin Tuna Fillets in Olive Oil 6.7oz&rdquo;, not just &ldquo;Tonnino tuna&rdquo;)
+          💡 Tip: The more specific, the better — include brand, size, and variant (e.g. &ldquo;Tonnino Yellowfin Tuna Fillets Olive Oil 6.7oz&rdquo;). Size matters most for accurate matches.
         </p>
       </div>
 
