@@ -244,9 +244,6 @@ function fileToBase64(file: File): Promise<string> {
 }
 
 function compressImage(file: File): Promise<File> {
-  const ONE_MB = 1024 * 1024;
-  if (file.size < ONE_MB) return Promise.resolve(file);
-
   return new Promise((resolve) => {
     const url = URL.createObjectURL(file);
     const img = new window.Image();
@@ -255,7 +252,7 @@ function compressImage(file: File): Promise<File> {
     img.onload = () => {
       URL.revokeObjectURL(url);
 
-      const MAX = 1600;
+      const MAX = 1200;
       let { width, height } = img;
       if (width > MAX || height > MAX) {
         if (width >= height) {
@@ -281,7 +278,7 @@ function compressImage(file: File): Promise<File> {
           resolve(new File([blob], name, { type: "image/jpeg" }));
         },
         "image/jpeg",
-        0.85
+        0.8
       );
     };
 
