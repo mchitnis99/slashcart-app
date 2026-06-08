@@ -87,7 +87,15 @@ export default function GroceryInput() {
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? "Failed to parse grocery list.");
+        // `error` can be a plain string (our API) or an object like
+        // { code, message } (hosting platform errors, e.g. payload-too-large
+        // on large mobile receipt photos) — extract a string in either case.
+        const message =
+          typeof data?.error === "string" ? data.error
+          : typeof data?.error?.message === "string" ? data.error.message
+          : typeof data?.message === "string" ? data.message
+          : "Failed to parse grocery list.";
+        throw new Error(message);
       }
 
       const { items, excluded_items, receipt_total, receipt_store } = await res.json();
