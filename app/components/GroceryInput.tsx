@@ -171,7 +171,7 @@ export default function GroceryInput() {
       <div>
         <p className="text-[#e2e8f0] text-sm font-semibold mb-1">Photograph items in your cart</p>
         <p className="text-[#94a3b8] text-xs mb-3">
-          See exactly how much you overpaid — and where to buy cheaper next time.
+          See where each item is cheapest across Amazon and Walmart.
         </p>
 
         {imagePreviews.length > 0 ? (
