@@ -12,6 +12,7 @@ export default function GroceryInput() {
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [photoProgress, setPhotoProgress] = useState(0);
   const [showHangTight, setShowHangTight] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const hangTightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -65,6 +66,7 @@ export default function GroceryInput() {
     }
     setError(null);
     setLoading(true);
+    setPhotoProgress(0);
     setShowHangTight(false);
 
     hangTightTimerRef.current = setTimeout(() => setShowHangTight(true), 2000);
@@ -76,36 +78,41 @@ export default function GroceryInput() {
       let receipt_store: string | null = null;
 
       if (imageFiles.length > 0) {
-        const results = await Promise.all(
-          imageFiles.map(async (file) => {
-            const compressed = await compressImage(file);
-            const base64 = await fileToBase64(compressed);
-            const res = await fetch("/api/parse-list", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                image: base64,
-                imageMediaType: compressed.type,
-                mode: "product",
-              }),
-            });
-            if (!res.ok) {
-              const data = await res.json().catch(() => ({}));
-              const message =
-                typeof data?.error === "string" ? data.error
-                : typeof data?.error?.message === "string" ? data.error.message
-                : typeof data?.message === "string" ? data.message
-                : "Failed to read product label.";
-              throw new Error(message);
-            }
-            return res.json() as Promise<{
-              items?: unknown[];
-              excluded_items?: unknown[];
-              receipt_total?: number | null;
-              receipt_store?: string | null;
-            }>;
-          })
-        );
+        type ImageResult = {
+          items?: unknown[];
+          excluded_items?: unknown[];
+          receipt_total?: number | null;
+          receipt_store?: string | null;
+        };
+        const results: ImageResult[] = [];
+        for (let i = 0; i < imageFiles.length; i++) {
+          setPhotoProgress(i + 1);
+          const file = imageFiles[i];
+          const compressed = await compressImage(file);
+          const base64 = await fileToBase64(compressed);
+          const res = await fetch("/api/parse-list", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              image: base64,
+              imageMediaType: compressed.type,
+              mode: "product",
+            }),
+          });
+          if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            const message =
+              typeof data?.error === "string" ? data.error
+              : typeof data?.error?.message === "string" ? data.error.message
+              : typeof data?.message === "string" ? data.message
+              : "Failed to read product label.";
+            throw new Error(message);
+          }
+          results.push(await res.json() as ImageResult);
+          if (i < imageFiles.length - 1) {
+            await new Promise((resolve) => setTimeout(resolve, 500));
+          }
+        }
         items = results.flatMap((r) => r.items ?? []);
         excluded_items = results.flatMap((r) => r.excluded_items ?? []);
       } else {
@@ -151,9 +158,9 @@ export default function GroceryInput() {
   }
 
   const loadingLabel =
-    imageFiles.length > 1
-      ? `Reading ${imageFiles.length} photos…`
-      : imageFiles.length === 1
+    loading && imageFiles.length > 0 && photoProgress > 0
+      ? `Reading photo ${photoProgress} of ${imageFiles.length}…`
+      : imageFiles.length > 0
         ? "Reading your photo…"
         : "Reading your list…";
 
