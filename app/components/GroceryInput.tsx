@@ -8,8 +8,8 @@ export default function GroceryInput() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [text, setText] = useState("");
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showHangTight, setShowHangTight] = useState(false);
@@ -22,16 +22,17 @@ export default function GroceryInput() {
     };
   }, []);
 
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (file) captureFile(file);
+  async function captureFiles(files: File[]) {
+    if (files.length === 0) return;
+    const previews = await Promise.all(files.map(fileToDataUrl));
+    setImageFiles((prev) => [...prev, ...files]);
+    setImagePreviews((prev) => [...prev, ...previews]);
   }
 
-  function captureFile(file: File) {
-    setImageFile(file);
-    const reader = new FileReader();
-    reader.onload = (ev) => setImagePreview(ev.target?.result as string);
-    reader.readAsDataURL(file);
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    void captureFiles(files);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
   function handleDragOver(e: React.DragEvent) {
@@ -47,20 +48,19 @@ export default function GroceryInput() {
   function handleDrop(e: React.DragEvent) {
     e.preventDefault();
     setIsDragging(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) captureFile(file);
+    const files = Array.from(e.dataTransfer.files ?? []);
+    void captureFiles(files);
   }
 
-  function removeImage() {
-    setImageFile(null);
-    setImagePreview(null);
-    if (fileInputRef.current) fileInputRef.current.value = "";
+  function removeImage(index: number) {
+    setImageFiles((prev) => prev.filter((_, i) => i !== index));
+    setImagePreviews((prev) => prev.filter((_, i) => i !== index));
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!text.trim() && !imageFile) {
-      setError("Please upload a receipt or paste a grocery list.");
+    if (!text.trim() && imageFiles.length === 0) {
+      setError("Please upload a photo or paste a grocery list.");
       return;
     }
     setError(null);
@@ -70,37 +70,73 @@ export default function GroceryInput() {
     hangTightTimerRef.current = setTimeout(() => setShowHangTight(true), 2000);
 
     try {
-      const body: Record<string, string> = { text: text.trim() };
+      let items: unknown[] = [];
+      let excluded_items: unknown[] = [];
+      let receipt_total: number | null = null;
+      let receipt_store: string | null = null;
 
-      if (imageFile) {
-        const compressed = await compressImage(imageFile);
-        const base64 = await fileToBase64(compressed);
-        body.image = base64;
-        body.imageMediaType = compressed.type;
+      if (imageFiles.length > 0) {
+        const results = await Promise.all(
+          imageFiles.map(async (file) => {
+            const compressed = await compressImage(file);
+            const base64 = await fileToBase64(compressed);
+            const res = await fetch("/api/parse-list", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                image: base64,
+                imageMediaType: compressed.type,
+                mode: "product",
+              }),
+            });
+            if (!res.ok) {
+              const data = await res.json().catch(() => ({}));
+              const message =
+                typeof data?.error === "string" ? data.error
+                : typeof data?.error?.message === "string" ? data.error.message
+                : typeof data?.message === "string" ? data.message
+                : "Failed to read product label.";
+              throw new Error(message);
+            }
+            return res.json() as Promise<{
+              items?: unknown[];
+              excluded_items?: unknown[];
+              receipt_total?: number | null;
+              receipt_store?: string | null;
+            }>;
+          })
+        );
+        items = results.flatMap((r) => r.items ?? []);
+        excluded_items = results.flatMap((r) => r.excluded_items ?? []);
+      } else {
+        const res = await fetch("/api/parse-list", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: text.trim() }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          const message =
+            typeof data?.error === "string" ? data.error
+            : typeof data?.error?.message === "string" ? data.error.message
+            : typeof data?.message === "string" ? data.message
+            : "Failed to parse grocery list.";
+          throw new Error(message);
+        }
+        const parsed = await res.json() as {
+          items?: unknown[];
+          excluded_items?: unknown[];
+          receipt_total?: number | null;
+          receipt_store?: string | null;
+        };
+        items = parsed.items ?? [];
+        excluded_items = parsed.excluded_items ?? [];
+        receipt_total = parsed.receipt_total ?? null;
+        receipt_store = parsed.receipt_store ?? null;
       }
 
-      const res = await fetch("/api/parse-list", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        // `error` can be a plain string (our API) or an object like
-        // { code, message } (hosting platform errors, e.g. payload-too-large
-        // on large mobile receipt photos) — extract a string in either case.
-        const message =
-          typeof data?.error === "string" ? data.error
-          : typeof data?.error?.message === "string" ? data.error.message
-          : typeof data?.message === "string" ? data.message
-          : "Failed to parse grocery list.";
-        throw new Error(message);
-      }
-
-      const { items, excluded_items, receipt_total, receipt_store } = await res.json();
       sessionStorage.setItem("slashcart_items", JSON.stringify(items));
-      sessionStorage.setItem("slashcart_excluded", JSON.stringify(excluded_items ?? []));
+      sessionStorage.setItem("slashcart_excluded", JSON.stringify(excluded_items));
       sessionStorage.setItem("slashcart_receipt_total", receipt_total != null ? String(receipt_total) : "");
       sessionStorage.setItem("slashcart_receipt_store", receipt_store ?? "");
 
@@ -114,32 +150,56 @@ export default function GroceryInput() {
     }
   }
 
-  const loadingLabel = imageFile ? "Reading your receipt…" : "Reading your list…";
+  const loadingLabel =
+    imageFiles.length > 1
+      ? `Reading ${imageFiles.length} photos…`
+      : imageFiles.length === 1
+        ? "Reading your photo…"
+        : "Reading your list…";
 
   return (
     <form onSubmit={handleSubmit} className="w-full max-w-2xl mx-auto space-y-4">
 
-      {/* Primary: receipt upload */}
+      {/* Primary: product photo upload */}
       <div>
-        <p className="text-[#e2e8f0] text-sm font-semibold mb-1">Upload your receipt</p>
+        <p className="text-[#e2e8f0] text-sm font-semibold mb-1">Photograph items in your cart</p>
         <p className="text-[#94a3b8] text-xs mb-3">
           See exactly how much you overpaid — and where to buy cheaper next time.
         </p>
-        {imagePreview ? (
-          <div className="relative rounded-xl overflow-hidden border border-[#1e3050] bg-[#142036]">
-            <img
-              src={imagePreview}
-              alt="Receipt preview"
-              className="w-full max-h-64 object-contain"
-            />
+
+        {imagePreviews.length > 0 ? (
+          <div className="space-y-3">
+            <div className="flex flex-wrap gap-2">
+              {imagePreviews.map((preview, i) => (
+                <div
+                  key={i}
+                  className="relative rounded-lg overflow-hidden border border-[#1e3050] bg-[#142036] w-20 h-20 shrink-0"
+                >
+                  <img
+                    src={preview}
+                    alt={`Item ${i + 1}`}
+                    className="w-full h-full object-cover"
+                  />
+                  {!loading && (
+                    <button
+                      type="button"
+                      onClick={() => removeImage(i)}
+                      className="absolute top-0.5 right-0.5 bg-[#0b1426]/80 hover:bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] transition"
+                      aria-label={`Remove photo ${i + 1}`}
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
             {!loading && (
               <button
                 type="button"
-                onClick={removeImage}
-                className="absolute top-2 right-2 bg-[#0b1426]/80 hover:bg-red-600 text-white rounded-full w-7 h-7 flex items-center justify-center text-xs transition"
-                aria-label="Remove image"
+                onClick={() => fileInputRef.current?.click()}
+                className="text-xs text-[#22c55e] hover:text-[#16a34a] transition"
               >
-                ✕
+                + Add more photos
               </button>
             )}
           </div>
@@ -158,8 +218,8 @@ export default function GroceryInput() {
             }`}
           >
             <span className="text-3xl">📷</span>
-            <span className="font-medium">Tap to upload or drag your receipt here</span>
-            <span className="text-xs text-[#475569]">JPG, PNG, WEBP, HEIC supported</span>
+            <span className="font-medium">Tap to photograph each item, or drag photos here</span>
+            <span className="text-xs text-[#475569]">One photo per item — we'll read the label for brand, size, and variant</span>
           </button>
         )}
       </div>
@@ -168,6 +228,7 @@ export default function GroceryInput() {
         ref={fileInputRef}
         type="file"
         accept="image/*,.jpg,.jpeg,.png,.gif,.webp,.heic,.heif"
+        multiple
         onChange={handleFileChange}
         className="hidden"
       />
@@ -229,6 +290,15 @@ export default function GroceryInput() {
       )}
     </form>
   );
+}
+
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (ev) => resolve(ev.target?.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 }
 
 function fileToBase64(file: File): Promise<string> {

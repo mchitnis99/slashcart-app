@@ -8,10 +8,11 @@ export async function POST(request: Request) {
     return Response.json({ error: "Invalid JSON body." }, { status: 400 });
   }
 
-  const { text, image, imageMediaType } = body as {
+  const { text, image, imageMediaType, mode } = body as {
     text?: string;
     image?: string;
     imageMediaType?: string;
+    mode?: "receipt" | "product";
   };
 
   if (!text && !image) {
@@ -21,7 +22,24 @@ export async function POST(request: Request) {
     );
   }
 
-  const systemPrompt = `You are a grocery list parser. Extract grocery items from the user's input, classify each as "pantry_staple" or "fresh", and return a JSON object.
+  const productLabelPrompt = `You are a product label reader. Identify the most prominent packaged product visible in the photo and extract its key details.
+
+Return a JSON object with:
+- items: array with ONE item for the main product shown
+- excluded_items: [] (always empty — unless the product is fresh produce, meat, dairy, or deli, in which case put it in excluded_items and leave items empty)
+- receiptTotal: null
+- receiptStore: null
+
+The single item must have:
+- name: brand and product name in singular lowercase form. Include the brand if clearly legible on the label (e.g. "Goya organic chickpeas", "Barilla linguine fini", "Arm & Hammer baking soda"). Include meaningful descriptors (e.g. "organic", "extra virgin", "whole grain", "reduced sodium") but omit filler words.
+- quantity: numeric size from the label (e.g. 15 for "15 oz", 1 for "1 lb", 16.9 for "16.9 fl oz"). Default to 1 if no size is printed.
+- unit: unit from the label ("oz", "lbs", "fl oz", "g", "kg", "count"). Default to "count" if not printed.
+- pricePaid: null
+
+Return ONLY valid JSON — no markdown, no explanation.
+Example: {"items":[{"name":"Goya organic chickpeas","quantity":15,"unit":"oz","pricePaid":null}],"excluded_items":[],"receiptTotal":null,"receiptStore":null}`;
+
+  const systemPrompt = mode === "product" ? productLabelPrompt : `You are a grocery list parser. Extract grocery items from the user's input, classify each as "pantry_staple" or "fresh", and return a JSON object.
 
 Pantry staples: canned goods, dry goods (pasta, rice, flour, oats), cereals, snacks, cleaning products, paper goods, oils, condiments, spices, beverages, frozen foods, packaged/processed foods.
 Fresh items: meat, poultry, fish/seafood, fresh produce (fruits and vegetables), dairy, deli, bakery.
@@ -78,9 +96,11 @@ Example output (typed list):
 
   userContent.push({
     type: "text",
-    text: text
-      ? `Parse this grocery list:\n\n${text}`
-      : "Parse the grocery list shown in this image.",
+    text: mode === "product"
+      ? "Identify the main product shown in this image and extract its details."
+      : text
+        ? `Parse this grocery list:\n\n${text}`
+        : "Parse the grocery list shown in this image.",
   });
 
   try {
