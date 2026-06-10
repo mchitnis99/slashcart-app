@@ -3,7 +3,7 @@ export const maxDuration = 60;
 import { getCachedPrice, setCachedPrice } from "@/lib/cache";
 import { type ParsedUnit } from "@/lib/utils/parseUnit";
 import { parseSize, toComparableSize } from "@/lib/utils/parseSize";
-import { extractBrands, passesBrandCheck, isStoreBrand, isRelevant, passesNegativeKeywords, matchesAllKeywords, isSpecialty } from "@/lib/scrapers/filters";
+import { extractBrands, passesBrandCheck, isStoreBrand, isRelevant, passesNegativeKeywords, matchesAllKeywords, isSpecialty, isBulkPack } from "@/lib/scrapers/filters";
 
 type GroceryItem = {
   name: string;
@@ -134,8 +134,28 @@ function isCachedAmazonStillValid(item: GroceryItem, amazon: AmazonRawBase): boo
   if (!matchesAllKeywords(amazon.productName, item.name)) return false;
   // A specialty/special-edition/diet-modified variant (e.g. "Special Edition", "No Salt
   // Added") should never stay pinned as primary — re-scrape so the standard-first pool
-  // ordering can pick a non-specialty result if one now exists.
-  if (!amazon.isDifferentBrand && isSpecialty(amazon.productName, item.name)) return false;
+  // ordering can pick a non-specialty result if one now exists. Applies to different-brand
+  // fallbacks too (e.g. a "No Salt Added" Hunt's substitute for a Goya query).
+  if (isSpecialty(amazon.productName, item.name)) return false;
+  return true;
+}
+
+// Re-validates a cached Walmart primary against the current filtering rules — same
+// rationale as isCachedAmazonStillValid. Catches store-brand substitutes (e.g.
+// "Millville") and multi-pack bundles (e.g. "2 Boxes", "X Ct") that older scrapes
+// pinned as primary before those rules existed.
+function isCachedWalmartStillValid(item: GroceryItem, walmart: StoreResultBase): boolean {
+  if (!walmart.productName) return false;
+  const brands = extractBrands(item.name);
+  if (brands.length > 0) {
+    if (isStoreBrand(walmart.productName) || !passesBrandCheck(walmart.productName, brands)) return false;
+  }
+  if (!isRelevant(walmart.productName, item.name, "walmart")) return false;
+  if (!passesNegativeKeywords(walmart.productName, item.name, "walmart")) return false;
+  // A multi-pack/bundle (e.g. "2 Boxes", "36 Oz, 2 Ct") should never stay pinned as
+  // primary — re-scrape so the single-unit-first preference can pick a non-bundle
+  // result if one now exists.
+  if (isBulkPack(walmart.productName)) return false;
   return true;
 }
 
@@ -176,20 +196,27 @@ export async function POST(request: Request) {
           }
         : { ...EMPTY_AMAZON_RAW, productName: item.name };
 
+      const cachedWalmart: StoreResult = cached.walmart
+        ? { ...cached.walmart, candidates: cached.walmart.candidates ?? [{ ...cached.walmart }] }
+        : { price: null, productName: item.name };
+
       // A previously-empty Amazon result (cached.amazon === null) is always re-tried —
       // scraper logic and ScraperAPI results both change over time, so a one-time empty
       // result shouldn't permanently mark an item "Unavailable" for the full cache TTL.
       const amazonStale = cached.amazon === null || !isCachedAmazonStillValid(item, cachedAmazonRaw);
-      if (amazonStale) {
-        const reason = cached.amazon === null
-          ? "no cached Amazon result"
-          : `"${cachedAmazonRaw.productName}" no longer passes filters`;
-        console.log(`[cache] STALE amazon for "${cacheKey}": ${reason}, re-scraping`);
+      const walmartStale = cached.walmart !== null && !isCachedWalmartStillValid(item, cachedWalmart);
+      if (amazonStale || walmartStale) {
+        if (amazonStale) {
+          const reason = cached.amazon === null
+            ? "no cached Amazon result"
+            : `"${cachedAmazonRaw.productName}" no longer passes filters`;
+          console.log(`[cache] STALE amazon for "${cacheKey}": ${reason}, re-scraping`);
+        }
+        if (walmartStale) {
+          console.log(`[cache] STALE walmart for "${cacheKey}": "${cachedWalmart.productName}" no longer passes filters, re-scraping`);
+        }
       } else {
         console.log(`[cache] HIT: "${cacheKey}"`);
-        const cachedWalmart: StoreResult = cached.walmart
-          ? { ...cached.walmart, candidates: cached.walmart.candidates ?? [{ ...cached.walmart }] }
-          : { price: null, productName: item.name };
         const amazonSize = parseSize(cachedAmazonRaw.productName, "Amazon");
         console.log("[parseSize]", cachedAmazonRaw.productName, "→", amazonSize?.quantity, amazonSize?.unit);
         const sizeMismatch = checkSizeMismatch(

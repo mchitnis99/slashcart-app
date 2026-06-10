@@ -150,10 +150,23 @@ const STORE_BRAND_PATTERNS = [
   /\bsolimo\b/i,
   /\bpresto\b/i,
   /\b365\s+by\s+whole\s+foods\b/i,
+  // Walmart store brands
+  /\bmillville\b/i,
 ];
 
 export function isStoreBrand(productName: string): boolean {
   return STORE_BRAND_PATTERNS.some((p) => p.test(productName));
+}
+
+// "Pack"/"multipack"/"case", or a small bundle quantity (2-12) followed by
+// "box(es)"/"ct"/"count"/"pk" (e.g. "2 Boxes", "36 Oz, 2 Ct"), indicate a
+// multi-unit bundle of separate retail units rather than a single product.
+// Larger counts (e.g. "112 count") describe the contents of a single
+// container, not a bundle of separate units.
+const BULK_PACK_RE = /\b(pack|multipack|case)\b|\b([2-9]|1[0-2])\s*-?\s*(boxes?|ct|count|pk)\b/i;
+
+export function isBulkPack(productName: string): boolean {
+  return BULK_PACK_RE.test(productName);
 }
 
 // Variant groups: words within a group are mutually exclusive.

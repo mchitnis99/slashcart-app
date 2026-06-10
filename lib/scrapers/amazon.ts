@@ -205,7 +205,14 @@ export async function scrapeAmazonPrice(itemName: string, pricePaid?: number, pr
     const sortedStandard = [...standard].sort(byRelevanceThenPrice);
     const sortedSpecialty = [...specialty].sort(byRelevanceThenPrice);
     const sameBrandPool = sortedStandard.length > 0 ? [...sortedStandard, ...sortedSpecialty] : sortedSpecialty;
-    differentBrandPool = [...differentBrandStandard, ...differentBrandSpecialty].sort(byRelevanceThenPrice);
+    // Same standard-first preference applies to different-brand fallbacks: a "No Salt
+    // Added"/specialty variant of another brand shouldn't outrank that brand's standard
+    // product just because it's cheaper.
+    const sortedDifferentBrandStandard = [...differentBrandStandard].sort(byRelevanceThenPrice);
+    const sortedDifferentBrandSpecialty = [...differentBrandSpecialty].sort(byRelevanceThenPrice);
+    differentBrandPool = sortedDifferentBrandStandard.length > 0
+      ? [...sortedDifferentBrandStandard, ...sortedDifferentBrandSpecialty]
+      : sortedDifferentBrandSpecialty;
     // Rule 5: never silently substitute — fall back to a different brand only when
     // no same-brand result exists at all, and it's labeled via isDifferentBrand below.
     pool = sameBrandPool.length > 0 ? sameBrandPool : differentBrandPool;

@@ -6,6 +6,8 @@ import {
   passesNegativeKeywords,
   getCategoryMinPrice,
   hasVariantKeyword,
+  isStoreBrand,
+  isBulkPack,
 } from "@/lib/scrapers/filters";
 import { parseSize, toComparableSize } from "@/lib/utils/parseSize";
 
@@ -28,10 +30,6 @@ function parsePrice(raw: unknown): number | null {
 
 // Units that represent physical product size (as opposed to order quantity like "count" or "pack").
 const SIZE_UNITS = new Set(["oz", "fl oz", "lb", "lbs", "g", "kg", "ml"]);
-
-// "count"/"ct" are container-size descriptors (e.g. "112 count tub"), not multipack indicators.
-// Only "pack", "multipack", and "case" signal a true multi-unit purchase.
-const BULK_RE = /\b(pack|multipack|case)\b/i;
 
 export async function scrapeWalmartPrice(itemName: string, pricePaid?: number, queryQuantity?: number, queryUnit?: string): Promise<WalmartResult[] | null> {
   const apiKey = process.env.SCRAPERAPI_KEY ?? "";
@@ -141,6 +139,13 @@ export async function scrapeWalmartPrice(itemName: string, pricePaid?: number, q
     }
 
     // Variant check removed — all passing results are candidates; user picks via pill selector
+    // Never substitute a store brand for a branded query — even when the rest of the
+    // name happens to satisfy the (possibly loose) brand-token check below.
+    if (hasBrand && isStoreBrand(name)) {
+      console.log(`[walmart] [BRAND-SKIP] store brand substitution rejected: "${name}" for branded query "${itemName}"`);
+      continue;
+    }
+
     // Fix 2: hard-reject brand mismatches for branded queries
     const brandOk = passesBrandCheck(name, brands);
     if (!brandOk) {
@@ -171,8 +176,8 @@ export async function scrapeWalmartPrice(itemName: string, pricePaid?: number, q
   // Prefer single-unit results over multi-packs as the primary result — per-unit price
   // already accounts for size, so a multi-pack should only surface when no single-unit
   // option is available at all.
-  const singleUnit = pooled.filter((c) => !BULK_RE.test(c.name));
-  const multiPack = pooled.filter((c) => BULK_RE.test(c.name));
+  const singleUnit = pooled.filter((c) => !isBulkPack(c.name));
+  const multiPack = pooled.filter((c) => isBulkPack(c.name));
   if (singleUnit.length > 0 && multiPack.length > 0) {
     console.log(`[walmart] MULTIPACK-DEPRIORITIZE: ${multiPack.length} multi-pack result(s) deprioritized in favor of ${singleUnit.length} single-unit result(s) (query: "${itemName}")`);
   }
