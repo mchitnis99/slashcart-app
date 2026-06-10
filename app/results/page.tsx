@@ -354,7 +354,7 @@ function PricedItemCard({
                 </>
               ) : (
                 <>
-                  {!item.sizeMismatch && amazonPricePerUnit !== null && amazonUnit ? (
+                  {amazonPricePerUnit !== null && amazonUnit ? (
                     <>
                       <p className={`font-bold text-xl leading-none mb-0.5 ${amazonCheapest ? "text-[#22c55e]" : "text-white"}`}>
                         ${amazonPricePerUnit.toFixed(2)}/{amazonUnit.unit}
@@ -448,7 +448,7 @@ function PricedItemCard({
 
           {effectiveWalmart.price !== null ? (
             <>
-              {!item.sizeMismatch && walmartPricePerUnit !== null && walmartUnit ? (
+              {walmartPricePerUnit !== null && walmartUnit ? (
                 <>
                   <p className={`font-bold text-xl leading-none mb-0.5 ${walmartCheapest ? "text-[#22c55e]" : "text-white"}`}>
                     ${walmartPricePerUnit.toFixed(2)}/{walmartUnit.unit}

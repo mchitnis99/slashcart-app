@@ -13,6 +13,8 @@ export const SPECIALTY_WORDS = [
   // Limited-run / collaboration editions — deprioritise in favor of the standard product
   "special edition", "limited edition", "limited", "collaboration", "collab",
   "x mike's", "savory-sweet",
+  // Diet/sodium-modified variants — deprioritise in favor of the standard product
+  "no salt added", "no salt", "reduced sodium", "low sodium",
 ];
 
 // Hard-exclude results containing these subtype words when the query
@@ -25,6 +27,9 @@ const NEGATIVE_KEYWORDS: Record<string, string[]> = {
   oil:        ["spray"],
   shampoo:    ["travel size", "travel", "mini"],
   conditioner:["travel size", "travel", "mini"],
+  // Raisin varieties — "golden raisins" and "(seedless) raisins" are different products
+  seedless:   ["golden"],
+  golden:     ["seedless"],
 };
 
 // Excluded from ALL results regardless of query category.

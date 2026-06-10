@@ -3,7 +3,7 @@ export const maxDuration = 60;
 import { getCachedPrice, setCachedPrice } from "@/lib/cache";
 import { type ParsedUnit } from "@/lib/utils/parseUnit";
 import { parseSize, toComparableSize } from "@/lib/utils/parseSize";
-import { extractBrands, passesBrandCheck, isStoreBrand, isRelevant, passesNegativeKeywords, matchesAllKeywords } from "@/lib/scrapers/filters";
+import { extractBrands, passesBrandCheck, isStoreBrand, isRelevant, passesNegativeKeywords, matchesAllKeywords, isSpecialty } from "@/lib/scrapers/filters";
 
 type GroceryItem = {
   name: string;
@@ -132,6 +132,10 @@ function isCachedAmazonStillValid(item: GroceryItem, amazon: AmazonRawBase): boo
   // product name — isRelevant's looser threshold can let a different product
   // (e.g. "Shredded Wheat") through just by sharing the brand and one descriptor.
   if (!matchesAllKeywords(amazon.productName, item.name)) return false;
+  // A specialty/special-edition/diet-modified variant (e.g. "Special Edition", "No Salt
+  // Added") should never stay pinned as primary — re-scrape so the standard-first pool
+  // ordering can pick a non-specialty result if one now exists.
+  if (!amazon.isDifferentBrand && isSpecialty(amazon.productName, item.name)) return false;
   return true;
 }
 
