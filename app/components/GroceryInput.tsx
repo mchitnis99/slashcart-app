@@ -375,7 +375,6 @@ function PhotoCaptureZone({
         ref={inputRef}
         type="file"
         accept="image/*,.jpg,.jpeg,.png,.gif,.webp,.heic,.heif"
-        capture="environment"
         multiple
         onChange={(e) => {
           const selected = Array.from(e.target.files ?? []);
