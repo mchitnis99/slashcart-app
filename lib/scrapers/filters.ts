@@ -28,6 +28,13 @@ const NEGATIVE_KEYWORDS: Record<string, string[]> = {
 // Uses specific multi-word phrases to avoid false positives (e.g. "Mini-Wheats").
 const GLOBAL_NEGATIVE_KEYWORDS = [
   "travel size", "travel pack", "trial size", "sample size", "on-the-go",
+  // Non-staple snack/single-serve formats — reject unless the query itself asks for
+  // these formats (e.g. a query for "granola bars" still matches granola bar results).
+  "wafer bar", "wafer bars", "protein bar", "protein bars",
+  "granola bar", "granola bars", "snack bar", "snack bars",
+  "cereal bar", "cereal bars", "breakfast bar", "breakfast bars",
+  "candy bar", "candy bars", "candy", "fruit snacks", "gummies", "gummy",
+  "cereal cup", "snack cup", "breakfast cup",
 ];
 
 // Minimum acceptable price per category — catches travel/trial sizes when pricePaid unavailable.
@@ -63,6 +70,20 @@ const REQUIRED_DESCRIPTORS: [string, string][] = [
   ...["almond", "peanut", "cashew", "walnut", "pecan"]
     .map((s): [string, string] => [s, s]),
 ];
+
+// Number of non-stopword query keywords found in the product name. Used to rank
+// same-brand candidates so a closer keyword match outranks a cheaper but less
+// relevant product (e.g. "Raisin Bran" outranking "Wheat n Bran" for a
+// "Post Raisin Bran" query).
+export function relevanceScore(productName: string, query: string): number {
+  const keywords = query
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((w) => w.length > 2 && !STOP_WORDS.has(w));
+  if (keywords.length === 0) return 0;
+  const nameWordSet = new Set(productName.toLowerCase().split(/\W+/).filter(Boolean));
+  return keywords.filter((kw) => nameWordSet.has(kw)).length;
+}
 
 export function isRelevant(productName: string, query: string, store?: string): boolean {
   const keywords = query
@@ -203,11 +224,17 @@ export function extractVariantLabel(productName: string, itemName?: string): str
   return productName.split(/\s+/).slice(0, 2).join(" ");
 }
 
-// Capitalised words in the query (length > 2, not a stop word) are treated as brand names.
+// The brand is the leading word of the query, by convention (e.g. "Post raisin bran",
+// "Maille honey dijon mustard", "Skippy creamy peanut butter"). Only treat it as a brand
+// if it's capitalized, long enough, and not a stop word — otherwise later descriptive
+// words (e.g. "Honey", "Dijon", "Raisin", "Bran") would be mistaken for brand names and
+// let wrong-brand products pass the brand check just by sharing those words.
 export function extractBrands(query: string): string[] {
-  return query
-    .split(/\s+/)
-    .filter((w) => w.length > 2 && /^[A-Z]/.test(w) && !STOP_WORDS.has(w.toLowerCase()));
+  const first = query.trim().split(/\s+/)[0] ?? "";
+  if (first.length > 2 && /^[A-Z]/.test(first) && !STOP_WORDS.has(first.toLowerCase())) {
+    return [first];
+  }
+  return [];
 }
 
 // Whole-word brand match: at least one brand word must appear as its own token in the name.

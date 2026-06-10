@@ -3,6 +3,7 @@ export const maxDuration = 60;
 import { getCachedPrice, setCachedPrice } from "@/lib/cache";
 import { type ParsedUnit } from "@/lib/utils/parseUnit";
 import { parseSize, toComparableSize } from "@/lib/utils/parseSize";
+import { extractBrands, passesBrandCheck, isStoreBrand, isRelevant, passesNegativeKeywords } from "@/lib/scrapers/filters";
 
 type GroceryItem = {
   name: string;
@@ -116,6 +117,20 @@ function normalizeCacheKey(name: string): string {
   return name.trim().toLowerCase().split(/\s+/).sort().join(" ");
 }
 
+// Re-validates a cached Amazon primary against the current filtering rules. Cache entries
+// written under older rule versions (e.g. before brand-check or negative-keyword updates)
+// can pin a stale, lower-relevance result that a fresh scrape would no longer pick.
+function isCachedAmazonStillValid(item: GroceryItem, amazon: AmazonRawBase): boolean {
+  if (!amazon.productName) return false;
+  const brands = extractBrands(item.name);
+  if (brands.length > 0 && !amazon.isDifferentBrand) {
+    if (isStoreBrand(amazon.productName) || !passesBrandCheck(amazon.productName, brands)) return false;
+  }
+  if (!isRelevant(amazon.productName, item.name, "amazon")) return false;
+  if (!passesNegativeKeywords(amazon.productName, item.name, "amazon")) return false;
+  return true;
+}
+
 const EMPTY_AMAZON_RAW: AmazonRaw = {
   price: null,
   productName: "",
@@ -142,7 +157,6 @@ export async function POST(request: Request) {
     const cached = await getCachedPrice(cacheKey);
 
     if (cached) {
-      console.log(`[cache] HIT: "${cacheKey}"`);
       const cachedAmazonRaw: AmazonRaw = cached.amazon
         ? {
             ...cached.amazon,
@@ -153,22 +167,29 @@ export async function POST(request: Request) {
             })),
           }
         : { ...EMPTY_AMAZON_RAW, productName: item.name };
-      const cachedWalmart: StoreResult = cached.walmart
-        ? { ...cached.walmart, candidates: cached.walmart.candidates ?? [{ ...cached.walmart }] }
-        : { price: null, productName: item.name };
-      const amazonSize = parseSize(cachedAmazonRaw.productName, "Amazon");
-      console.log("[parseSize]", cachedAmazonRaw.productName, "→", amazonSize?.quantity, amazonSize?.unit);
-      const sizeMismatch = checkSizeMismatch(
-        amazonSize,
-        parseSize(cachedWalmart.productName, "Walmart")
-      );
-      return {
-        ...item,
-        amazon: toAmazonStoreResult(cachedAmazonRaw, sizeMismatch),
-        walmart: cachedWalmart,
-        samsclub: { price: null, productName: item.name },
-        sizeMismatch,
-      };
+
+      const amazonStale = cached.amazon !== null && !isCachedAmazonStillValid(item, cachedAmazonRaw);
+      if (amazonStale) {
+        console.log(`[cache] STALE amazon for "${cacheKey}": "${cachedAmazonRaw.productName}" no longer passes filters, re-scraping`);
+      } else {
+        console.log(`[cache] HIT: "${cacheKey}"`);
+        const cachedWalmart: StoreResult = cached.walmart
+          ? { ...cached.walmart, candidates: cached.walmart.candidates ?? [{ ...cached.walmart }] }
+          : { price: null, productName: item.name };
+        const amazonSize = parseSize(cachedAmazonRaw.productName, "Amazon");
+        console.log("[parseSize]", cachedAmazonRaw.productName, "→", amazonSize?.quantity, amazonSize?.unit);
+        const sizeMismatch = checkSizeMismatch(
+          amazonSize,
+          parseSize(cachedWalmart.productName, "Walmart")
+        );
+        return {
+          ...item,
+          amazon: toAmazonStoreResult(cachedAmazonRaw, sizeMismatch),
+          walmart: cachedWalmart,
+          samsclub: { price: null, productName: item.name },
+          sizeMismatch,
+        };
+      }
     }
 
     console.log(`[cache] MISS: "${cacheKey}"`);

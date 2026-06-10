@@ -7,6 +7,7 @@ import {
   getCategoryMinPrice,
   isStoreBrand,
   hasVariantKeyword,
+  relevanceScore,
   VARIANT_GROUPS,
 } from "@/lib/scrapers/filters";
 import { parseSize, toComparableSize } from "@/lib/utils/parseSize";
@@ -106,7 +107,7 @@ export async function scrapeAmazonPrice(itemName: string, pricePaid?: number, pr
     : null;
   const queryNorm = queryNormFromArgs ?? toComparableSize(parseSize(searchQuery));
 
-  type Candidate = { result: Record<string, unknown>; price: number; asin: string | null; isDifferentBrand?: boolean };
+  type Candidate = { result: Record<string, unknown>; price: number; asin: string | null; isDifferentBrand?: boolean; relevance: number };
   const standard: Candidate[] = [];
   const specialty: Candidate[] = [];
   const tooBig: Candidate[] = [];
@@ -123,6 +124,7 @@ export async function scrapeAmazonPrice(itemName: string, pricePaid?: number, pr
     // Rule 4: log no-price results
     const price = parsePrice(result.price);
     if (!isRelevant(title, itemName, "amazon")) continue;
+    const relevance = relevanceScore(title, itemName);
     if (price === null) {
       console.log(`[amazon] [NO-PRICE] "${title}" (query: "${itemName}")`);
       continue;
@@ -146,17 +148,17 @@ export async function scrapeAmazonPrice(itemName: string, pricePaid?: number, pr
     // Size sanity checks
     if (pricePaid && price < pricePaid * 0.50) {
       console.log(`[amazon] [TOO-SMALL] "${title}" @ $${price} (pricePaid=$${pricePaid}, ${Math.round(price/pricePaid*100)}% of paid) (query: "${itemName}")`);
-      tooSmall.push({ result, price, asin: toStringOrNull(result.asin ?? result.product_id) });
+      tooSmall.push({ result, price, asin: toStringOrNull(result.asin ?? result.product_id), relevance });
       continue;
     }
     if (categoryMin !== null && price < categoryMin) {
       console.log(`[amazon] [TOO-SMALL] "${title}" @ $${price} (category floor $${categoryMin}) (query: "${itemName}")`);
-      tooSmall.push({ result, price, asin: toStringOrNull(result.asin ?? result.product_id) });
+      tooSmall.push({ result, price, asin: toStringOrNull(result.asin ?? result.product_id), relevance });
       continue;
     }
     if (pricePaid && price > pricePaid * 2.00) {
       console.log(`[amazon] [TOO-BIG] "${title}" @ $${price} (pricePaid=$${pricePaid}, ${Math.round(price/pricePaid*100)}% of paid) (query: "${itemName}")`);
-      tooBig.push({ result, price, asin: toStringOrNull(result.asin ?? result.product_id) });
+      tooBig.push({ result, price, asin: toStringOrNull(result.asin ?? result.product_id), relevance });
       continue;
     }
 
@@ -173,8 +175,8 @@ export async function scrapeAmazonPrice(itemName: string, pricePaid?: number, pr
         console.log(`[amazon] [DIFFERENT-BRAND] "${title}" @ $${price} (expected "${brands.join("/")}", got "${inferredBrand}", query: "${itemName}")`);
         const special = isSpecialty(title, itemName);
         const asin = toStringOrNull(result.asin ?? result.product_id);
-        if (special) differentBrandSpecialty.push({ result, price, asin, isDifferentBrand: true });
-        else differentBrandStandard.push({ result, price, asin, isDifferentBrand: true });
+        if (special) differentBrandSpecialty.push({ result, price, asin, isDifferentBrand: true, relevance });
+        else differentBrandStandard.push({ result, price, asin, isDifferentBrand: true, relevance });
         continue;
       }
     }
@@ -183,25 +185,34 @@ export async function scrapeAmazonPrice(itemName: string, pricePaid?: number, pr
     const special = isSpecialty(title, itemName);
     const asin = toStringOrNull(result.asin ?? result.product_id);
     console.log(`[amazon] [${special ? "SPECIALTY" : "PASS"}] "${title}" @ $${price} (query: "${itemName}")`);
-    if (special) specialty.push({ result, price, asin });
-    else         standard.push({ result, price, asin });
+    if (special) specialty.push({ result, price, asin, relevance });
+    else         standard.push({ result, price, asin, relevance });
   }
 
   // Collect ordered candidate pool (branded: prefer same-brand; generic: full chain)
   let pool: Candidate[];
   let differentBrandPool: Candidate[] = [];
+  // Rank by relevance first so a closer keyword match (e.g. "Post Raisin Bran Cereal")
+  // outranks a cheaper but less relevant same-brand product (e.g. "Post Wheat n Bran
+  // Shredded Wheat"); price only breaks ties between equally relevant candidates.
+  const byRelevanceThenPrice = (a: Candidate, b: Candidate) => b.relevance - a.relevance || a.price - b.price;
+
   if (hasBrand) {
-    const sameBrandPool = [...standard, ...specialty].sort((a, b) => a.price - b.price);
-    differentBrandPool = [...differentBrandStandard, ...differentBrandSpecialty].sort((a, b) => a.price - b.price);
+    const sameBrandPool = [...standard, ...specialty].sort(byRelevanceThenPrice);
+    differentBrandPool = [...differentBrandStandard, ...differentBrandSpecialty].sort(byRelevanceThenPrice);
     // Rule 5: never silently substitute — fall back to a different brand only when
     // no same-brand result exists at all, and it's labeled via isDifferentBrand below.
     pool = sameBrandPool.length > 0 ? sameBrandPool : differentBrandPool;
   } else {
-    const ordered = [...standard, ...specialty, ...tooBig, ...tooSmall].sort((a, b) => a.price - b.price);
+    const ordered = [...standard, ...specialty, ...tooBig, ...tooSmall].sort(byRelevanceThenPrice);
     if (ordered.length === 0) {
       for (const result of results) {
         const price = parsePrice(result.price);
-        if (price !== null) { ordered.push({ result, price, asin: toStringOrNull(result.asin ?? result.product_id) }); break; }
+        if (price !== null) {
+          const title = String(result.name ?? result.title ?? "");
+          ordered.push({ result, price, asin: toStringOrNull(result.asin ?? result.product_id), relevance: relevanceScore(title, itemName) });
+          break;
+        }
       }
     }
     pool = ordered;
