@@ -29,6 +29,10 @@ function parsePrice(raw: unknown): number | null {
 // Units that represent physical product size (as opposed to order quantity like "count" or "pack").
 const SIZE_UNITS = new Set(["oz", "fl oz", "lb", "lbs", "g", "kg", "ml"]);
 
+// "count"/"ct" are container-size descriptors (e.g. "112 count tub"), not multipack indicators.
+// Only "pack", "multipack", and "case" signal a true multi-unit purchase.
+const BULK_RE = /\b(pack|multipack|case)\b/i;
+
 export async function scrapeWalmartPrice(itemName: string, pricePaid?: number, queryQuantity?: number, queryUnit?: string): Promise<WalmartResult[] | null> {
   const apiKey = process.env.SCRAPERAPI_KEY ?? "";
   const url =
@@ -157,13 +161,23 @@ export async function scrapeWalmartPrice(itemName: string, pricePaid?: number, q
   }
 
   // Collect top 3 cheapest from available pool
-  const allCandidates = [...standard, ...specialty, ...noBrand, ...tooBig, ...tooSmall]
-    .sort((a, b) => a.price - b.price);
+  const pooled = [...standard, ...specialty, ...noBrand, ...tooBig, ...tooSmall];
 
-  if (allCandidates.length === 0) {
+  if (pooled.length === 0) {
     console.error(`[walmart] No relevant priced results for "${itemName}". Response:`, JSON.stringify(data).slice(0, 500));
     return null;
   }
+
+  // Prefer single-unit results over multi-packs as the primary result — per-unit price
+  // already accounts for size, so a multi-pack should only surface when no single-unit
+  // option is available at all.
+  const singleUnit = pooled.filter((c) => !BULK_RE.test(c.name));
+  const multiPack = pooled.filter((c) => BULK_RE.test(c.name));
+  if (singleUnit.length > 0 && multiPack.length > 0) {
+    console.log(`[walmart] MULTIPACK-DEPRIORITIZE: ${multiPack.length} multi-pack result(s) deprioritized in favor of ${singleUnit.length} single-unit result(s) (query: "${itemName}")`);
+  }
+  const allCandidates = (singleUnit.length > 0 ? singleUnit : multiPack)
+    .sort((a, b) => a.price - b.price);
 
   const topCandidates: typeof allCandidates = [allCandidates[0]];
   for (let i = 1; i < allCandidates.length && topCandidates.length < 3; i++) {

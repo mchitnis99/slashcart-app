@@ -176,9 +176,15 @@ export async function POST(request: Request) {
           }
         : { ...EMPTY_AMAZON_RAW, productName: item.name };
 
-      const amazonStale = cached.amazon !== null && !isCachedAmazonStillValid(item, cachedAmazonRaw);
+      // A previously-empty Amazon result (cached.amazon === null) is always re-tried —
+      // scraper logic and ScraperAPI results both change over time, so a one-time empty
+      // result shouldn't permanently mark an item "Unavailable" for the full cache TTL.
+      const amazonStale = cached.amazon === null || !isCachedAmazonStillValid(item, cachedAmazonRaw);
       if (amazonStale) {
-        console.log(`[cache] STALE amazon for "${cacheKey}": "${cachedAmazonRaw.productName}" no longer passes filters, re-scraping`);
+        const reason = cached.amazon === null
+          ? "no cached Amazon result"
+          : `"${cachedAmazonRaw.productName}" no longer passes filters`;
+        console.log(`[cache] STALE amazon for "${cacheKey}": ${reason}, re-scraping`);
       } else {
         console.log(`[cache] HIT: "${cacheKey}"`);
         const cachedWalmart: StoreResult = cached.walmart

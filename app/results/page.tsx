@@ -176,6 +176,10 @@ function PricedItemCard({
   const amazonUnit = effectiveAmazon.productName ? parseSize(effectiveAmazon.productName) : null;
   const walmartUnit = effectiveWalmart.productName ? parseSize(effectiveWalmart.productName) : null;
 
+  // PPU can't be computed when a result has a price but its size couldn't be parsed.
+  const amazonSizeUnknown = effectiveAmazon.price !== null && amazonUnit === null;
+  const walmartSizeUnknown = effectiveWalmart.price !== null && walmartUnit === null;
+
   const amazonPricePerUnit =
     amazonUnit && effectiveAmazon.price !== null ? effectiveAmazon.price / amazonUnit.quantity : null;
   const walmartPricePerUnit =
@@ -236,14 +240,18 @@ function PricedItemCard({
             </span>
             {recommendedPrice !== null && (
               recommendedPrice < item.pricePaid
-                ? <span className="text-[#22c55e] text-xs font-medium">Save ${(item.pricePaid - recommendedPrice).toFixed(2)} vs receipt</span>
+                ? <span className="text-[#22c55e] text-xs font-medium">Save ${(item.pricePaid - recommendedPrice).toFixed(2)} vs. shelf price</span>
                 : <span className="text-[#22c55e] text-xs font-medium">Good price ✓</span>
             )}
           </div>
         )}
-        {item.sizeMismatch && (
+        {(amazonSizeUnknown || walmartSizeUnknown) && (
           <p className="text-[#f59e0b] text-[10px] mt-0.5">
-            ⚠ Different sizes — prices not directly comparable
+            ⚠ {amazonSizeUnknown && walmartSizeUnknown
+              ? "Size unavailable for Amazon and Walmart — per-unit price not shown"
+              : amazonSizeUnknown
+              ? "Size unavailable for Amazon — per-unit price not shown"
+              : "Size unavailable for Walmart — per-unit price not shown"}
           </p>
         )}
       </div>
@@ -277,7 +285,7 @@ function PricedItemCard({
                   <button
                     key={opt}
                     type="button"
-                    onClick={(e) => { e.stopPropagation(); onBulkToggle(opt); }}
+                    onClick={(e) => { e.stopPropagation(); e.preventDefault(); onBulkToggle(opt); }}
                     className={`text-[9px] px-1.5 py-0.5 rounded border transition capitalize ${
                       bulkSelected === opt
                         ? "border-[#22c55e] bg-[#22c55e]/10 text-[#22c55e]"
@@ -376,7 +384,7 @@ function PricedItemCard({
                   )}
                   {amazonVsReceiptPct !== null && amazonVsReceiptPct > 0 && (
                     <p className="text-[#22c55e] text-[10px] leading-none mb-1">
-                      Save {amazonVsReceiptPct}% vs what you paid
+                      Save {amazonVsReceiptPct}% vs. shelf price
                     </p>
                   )}
                   {amazonVsWalmartPct !== null && amazonVsWalmartPct > 0 && (
@@ -470,7 +478,7 @@ function PricedItemCard({
               )}
               {walmartVsReceiptPct !== null && walmartVsReceiptPct > 0 && (
                 <p className="text-[#22c55e] text-[10px] leading-none mb-1">
-                  Save {walmartVsReceiptPct}% vs what you paid
+                  Save {walmartVsReceiptPct}% vs. shelf price
                 </p>
               )}
               {walmartVsAmazonPct !== null && walmartVsAmazonPct > 0 && (
