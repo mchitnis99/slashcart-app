@@ -12,7 +12,7 @@ export async function POST(request: Request) {
     text?: string;
     image?: string;
     imageMediaType?: string;
-    mode?: "receipt" | "product";
+    mode?: "receipt" | "product" | "shelf";
   };
 
   if (!text && !image) {
@@ -39,7 +39,24 @@ The single item must have:
 Return ONLY valid JSON — no markdown, no explanation.
 Example: {"items":[{"name":"Goya organic chickpeas","quantity":15,"unit":"oz","pricePaid":null}],"excluded_items":[],"receiptTotal":null,"receiptStore":null}`;
 
-  const systemPrompt = mode === "product" ? productLabelPrompt : `You are a grocery list parser. Extract grocery items from the user's input, classify each as "pantry_staple" or "fresh", and return a JSON object.
+  const shelfLabelPrompt = `You are reading a grocery store shelf label photo. Extract: brand name, full product name, size/quantity (number + unit), and the store price (labeled "YOU PAY" or the main price shown).
+
+Return a JSON object with:
+- items: array with ONE item for the product on this shelf label
+- excluded_items: []
+- receiptTotal: null
+- receiptStore: null
+
+The single item must have:
+- name: brand and product name (e.g. "Goya organic chickpeas")
+- quantity: numeric size from the label (number)
+- unit: unit from the label ("oz", "lb", "fl oz", "ct", etc.)
+- pricePaid: the store price as a number (from "YOU PAY" or the main price shown)
+
+One item per label. Return ONLY valid JSON — no markdown, no explanation.
+Example: {"items":[{"name":"Goya organic chickpeas","quantity":15,"unit":"oz","pricePaid":1.99}],"excluded_items":[],"receiptTotal":null,"receiptStore":null}`;
+
+  const systemPrompt = mode === "product" ? productLabelPrompt : mode === "shelf" ? shelfLabelPrompt : `You are a grocery list parser. Extract grocery items from the user's input, classify each as "pantry_staple" or "fresh", and return a JSON object.
 
 Pantry staples: canned goods, dry goods (pasta, rice, flour, oats), cereals, snacks, cleaning products, paper goods, oils, condiments, spices, beverages, frozen foods, packaged/processed foods.
 Fresh items: meat, poultry, fish/seafood, fresh produce (fruits and vegetables), dairy, deli, bakery.
@@ -98,9 +115,11 @@ Example output (typed list):
     type: "text",
     text: mode === "product"
       ? "Identify the main product shown in this image and extract its details."
-      : text
-        ? `Parse this grocery list:\n\n${text}`
-        : "Parse the grocery list shown in this image.",
+      : mode === "shelf"
+        ? "Read the shelf label shown in this image and extract the product, size, and price."
+        : text
+          ? `Parse this grocery list:\n\n${text}`
+          : "Parse the grocery list shown in this image.",
   });
 
   try {
