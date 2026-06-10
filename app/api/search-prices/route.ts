@@ -30,6 +30,7 @@ type AmazonRawBase = {
   bulkPrice: number | null;
   bulkQuantity: number | null;
   bulkAsin: string | null;
+  isDifferentBrand: boolean;
 };
 type AmazonRaw = AmazonRawBase & { candidates?: AmazonRawBase[] };
 
@@ -82,9 +83,11 @@ async function tryAmazonScrape(itemName: string, pricePaid?: number | null, pref
       bulkPrice: primary.bulkPrice,
       bulkQuantity: primary.bulkQuantity,
       bulkAsin: primary.bulkAsin,
+      isDifferentBrand: primary.isDifferentBrand,
       candidates: results.map((r) => ({
         price: r.price, productName: r.name, asin: r.asin, imageUrl: r.imageUrl ?? null,
         regularPrice: r.regularPrice, bulkPrice: r.bulkPrice, bulkQuantity: r.bulkQuantity, bulkAsin: r.bulkAsin,
+        isDifferentBrand: r.isDifferentBrand,
       })),
     };
   } catch (err) {
@@ -121,6 +124,7 @@ const EMPTY_AMAZON_RAW: AmazonRaw = {
   bulkPrice: null,
   bulkQuantity: null,
   bulkAsin: null,
+  isDifferentBrand: false,
   candidates: [],
 };
 
@@ -140,7 +144,14 @@ export async function POST(request: Request) {
     if (cached) {
       console.log(`[cache] HIT: "${cacheKey}"`);
       const cachedAmazonRaw: AmazonRaw = cached.amazon
-        ? { ...cached.amazon, candidates: cached.amazon.candidates ?? [{ ...cached.amazon }] }
+        ? {
+            ...cached.amazon,
+            isDifferentBrand: cached.amazon.isDifferentBrand ?? false,
+            candidates: (cached.amazon.candidates ?? [{ ...cached.amazon }]).map((c) => ({
+              ...c,
+              isDifferentBrand: c.isDifferentBrand ?? false,
+            })),
+          }
         : { ...EMPTY_AMAZON_RAW, productName: item.name };
       const cachedWalmart: StoreResult = cached.walmart
         ? { ...cached.walmart, candidates: cached.walmart.candidates ?? [{ ...cached.walmart }] }

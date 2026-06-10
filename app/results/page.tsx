@@ -12,6 +12,7 @@ type WalmartVariant = { price: number | null; productName: string; url?: string 
 type AmazonVariant = {
   price: number | null; productName: string; asin: string | null; imageUrl?: string | null;
   regularPrice: number | null; bulkPrice: number | null; bulkQuantity: number | null; bulkAsin: string | null;
+  isDifferentBrand?: boolean;
 };
 type StoreResult = WalmartVariant & { candidates?: WalmartVariant[] };
 type AmazonStoreResult = AmazonVariant & {
@@ -151,7 +152,8 @@ function PricedItemCard({
     ? item.amazon.candidates
     : [{ price: item.amazon.price, productName: item.amazon.productName, asin: item.amazon.asin,
          imageUrl: item.amazon.imageUrl, regularPrice: item.amazon.regularPrice,
-         bulkPrice: item.amazon.bulkPrice, bulkQuantity: item.amazon.bulkQuantity, bulkAsin: item.amazon.bulkAsin }];
+         bulkPrice: item.amazon.bulkPrice, bulkQuantity: item.amazon.bulkQuantity, bulkAsin: item.amazon.bulkAsin,
+         isDifferentBrand: item.amazon.isDifferentBrand }];
   const walmartVariants: WalmartVariant[] = item.walmart.candidates?.length
     ? item.walmart.candidates
     : [{ price: item.walmart.price, productName: item.walmart.productName,
@@ -258,9 +260,14 @@ function PricedItemCard({
           <div className="flex items-center justify-between gap-1 mb-2 min-w-0">
             <div className="flex items-center gap-1.5 min-w-0">
               <p className="text-[#94a3b8] text-xs font-medium shrink-0">Amazon</p>
-              {amazonCheapest && (
+              {amazonCheapest && !effectiveAmazon.isDifferentBrand && (
                 <span className="text-[9px] font-semibold text-[#22c55e] bg-[#22c55e]/10 border border-[#22c55e]/30 rounded px-1 py-0.5 leading-none shrink-0">
                   Best value
+                </span>
+              )}
+              {effectiveAmazon.isDifferentBrand && (
+                <span className="text-[9px] font-semibold text-[#f59e0b] bg-[#f59e0b]/10 border border-[#f59e0b]/30 rounded px-1 py-0.5 leading-none shrink-0">
+                  {amazonCheapest ? "Best value — different brand" : "Different brand"}
                 </span>
               )}
             </div>
@@ -710,14 +717,13 @@ export default function ResultsPage() {
     const { amazonCheapest } = getWinners(item);
     return s + ((amazonCheapest ? item.amazon.price : item.walmart.price) ?? 0);
   }, 0));
-  const totalReceiptSavings = receiptTotal !== null && savingsEntries.length > 0
-    ? round(savingsReceiptTotal - savingsSlashcartTotal)
-    : 0;
-
   const pantryReceiptTotal = allLoaded
     ? round((pricedItems.filter(Boolean) as PricedItem[]).reduce(
         (s, item) => s + (item.pricePaid && item.pricePaid > 0 ? item.pricePaid : 0), 0
       ))
+    : 0;
+  const totalReceiptSavings = allLoaded && pantryReceiptTotal > 0 && savingsEntries.length > 0
+    ? round(savingsReceiptTotal - savingsSlashcartTotal)
     : 0;
   const savingsPct = pantryReceiptTotal > 0
     ? Math.round((totalReceiptSavings / pantryReceiptTotal) * 100)
@@ -741,7 +747,7 @@ export default function ResultsPage() {
         </p>
       )}
 
-      {allLoaded && receiptTotal !== null ? (
+      {allLoaded && pantryReceiptTotal > 0 ? (
         <div className="mb-5 rounded-xl bg-[#0d2e1a] border border-[#22c55e]/40 px-5 py-5">
           <div className="mb-4 space-y-1">
             <p className="text-[#94a3b8] text-sm">
@@ -774,11 +780,13 @@ export default function ResultsPage() {
           ) : (
             <p className="text-[#22c55e] text-sm font-medium">✓ You got good prices on all these items</p>
           )}
-          <p className="text-white/30 text-xs mt-4">
-            ${receiptTotal.toFixed(2)} total receipt
-            {receiptStore ? ` at ${receiptStore}` : ""}
-            {" "}— fresh items and items not found online excluded
-          </p>
+          {receiptTotal !== null && (
+            <p className="text-white/30 text-xs mt-4">
+              ${receiptTotal.toFixed(2)} total receipt
+              {receiptStore ? ` at ${receiptStore}` : ""}
+              {" "}— fresh items and items not found online excluded
+            </p>
+          )}
         </div>
       ) : showSplitBanner ? (
         <div className="mb-4 rounded-xl border border-[#1e3050] bg-[#0a1628] px-4 py-3 flex items-start gap-2.5">

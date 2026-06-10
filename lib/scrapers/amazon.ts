@@ -28,6 +28,7 @@ export type AmazonResult = {
   bulkPrice: number | null;
   bulkQuantity: number | null;
   bulkAsin: string | null;
+  isDifferentBrand: boolean;
 };
 
 function parsePrice(raw: unknown): number | null {
@@ -105,11 +106,13 @@ export async function scrapeAmazonPrice(itemName: string, pricePaid?: number, pr
     : null;
   const queryNorm = queryNormFromArgs ?? toComparableSize(parseSize(searchQuery));
 
-  type Candidate = { result: Record<string, unknown>; price: number; asin: string | null };
+  type Candidate = { result: Record<string, unknown>; price: number; asin: string | null; isDifferentBrand?: boolean };
   const standard: Candidate[] = [];
   const specialty: Candidate[] = [];
   const tooBig: Candidate[] = [];
   const tooSmall: Candidate[] = [];
+  const differentBrandStandard: Candidate[] = [];
+  const differentBrandSpecialty: Candidate[] = [];
 
   for (const result of results) {
     const title = String(result.name ?? result.title ?? "");
@@ -163,10 +166,16 @@ export async function scrapeAmazonPrice(itemName: string, pricePaid?: number, pr
         const inferredBrand = title.split(/\s+/).slice(0, 3).join(" ");
         if (isStoreBrand(title)) {
           console.log(`[amazon] [BRAND-SKIP] store brand substitution rejected: "${inferredBrand}" for branded query "${itemName}"`);
-        } else {
-          console.log(`[amazon] [BRAND-SKIP] brand mismatch: expected "${brands.join("/")}", got "${inferredBrand}" (query: "${itemName}")`);
+          continue; // never substitute a store brand, even as a labeled fallback
         }
-        continue; // Rule 5: no fallback to wrong brand
+        // Different (non-store) brand — keep as a labeled alternative rather than
+        // silently dropping it. It only becomes the primary if no same-brand result exists.
+        console.log(`[amazon] [DIFFERENT-BRAND] "${title}" @ $${price} (expected "${brands.join("/")}", got "${inferredBrand}", query: "${itemName}")`);
+        const special = isSpecialty(title, itemName);
+        const asin = toStringOrNull(result.asin ?? result.product_id);
+        if (special) differentBrandSpecialty.push({ result, price, asin, isDifferentBrand: true });
+        else differentBrandStandard.push({ result, price, asin, isDifferentBrand: true });
+        continue;
       }
     }
 
@@ -178,10 +187,15 @@ export async function scrapeAmazonPrice(itemName: string, pricePaid?: number, pr
     else         standard.push({ result, price, asin });
   }
 
-  // Collect ordered candidate pool (branded: no wrong-brand fallbacks; generic: full chain)
+  // Collect ordered candidate pool (branded: prefer same-brand; generic: full chain)
   let pool: Candidate[];
+  let differentBrandPool: Candidate[] = [];
   if (hasBrand) {
-    pool = [...standard, ...specialty].sort((a, b) => a.price - b.price);
+    const sameBrandPool = [...standard, ...specialty].sort((a, b) => a.price - b.price);
+    differentBrandPool = [...differentBrandStandard, ...differentBrandSpecialty].sort((a, b) => a.price - b.price);
+    // Rule 5: never silently substitute — fall back to a different brand only when
+    // no same-brand result exists at all, and it's labeled via isDifferentBrand below.
+    pool = sameBrandPool.length > 0 ? sameBrandPool : differentBrandPool;
   } else {
     const ordered = [...standard, ...specialty, ...tooBig, ...tooSmall].sort((a, b) => a.price - b.price);
     if (ordered.length === 0) {
@@ -194,7 +208,7 @@ export async function scrapeAmazonPrice(itemName: string, pricePaid?: number, pr
   }
 
   if (pool.length === 0) {
-    console.log(`[amazon] No suitable result for "${itemName}" (hasBrand=${hasBrand}, standard=${standard.length}, specialty=${specialty.length})`);
+    console.log(`[amazon] No suitable result for "${itemName}" (hasBrand=${hasBrand}, standard=${standard.length}, specialty=${specialty.length}, differentBrand=${differentBrandPool.length})`);
     return null;
   }
 
@@ -204,6 +218,14 @@ export async function scrapeAmazonPrice(itemName: string, pricePaid?: number, pr
   for (let i = 1; i < pool.length && topCandidates.length < 3; i++) {
     const candidateTitle = String(pool[i].result.name ?? pool[i].result.title ?? itemName);
     if (hasVariantKeyword(candidateTitle)) topCandidates.push(pool[i]);
+  }
+  // If our primary is a same-brand match but a different brand has a better price,
+  // surface it as a labeled alternative — never substitute it silently.
+  if (hasBrand && pool !== differentBrandPool && differentBrandPool.length > 0 && topCandidates.length < 3) {
+    const bestDifferentBrand = differentBrandPool[0];
+    if (bestDifferentBrand.price < topCandidates[0].price) {
+      topCandidates.push(bestDifferentBrand);
+    }
   }
   const primaryCandidate = topCandidates[0];
   const regularPrice = primaryCandidate.price;
@@ -228,6 +250,7 @@ export async function scrapeAmazonPrice(itemName: string, pricePaid?: number, pr
   const primaryName = String(regularResult.name ?? itemName);
   console.log(
     `[amazon] Selected "${itemName}": ${primaryName} @ $${regularPrice}` +
+    (primaryCandidate.isDifferentBrand ? ` [DIFFERENT BRAND — no same-brand match found]` : "") +
     (bulkPrice !== null && bulkQuantity !== null ? `, bulk: $${bulkPrice} (${bulkQuantity}-pack, $${(bulkPrice/bulkQuantity).toFixed(2)}/unit)` : "") +
     ` + ${topCandidates.length - 1} variant(s) (standard=${standard.length}, specialty=${specialty.length}, branded=${hasBrand})`
   );
@@ -250,6 +273,7 @@ export async function scrapeAmazonPrice(itemName: string, pricePaid?: number, pr
       bulkPrice: idx === 0 ? bulkPrice : null,
       bulkQuantity: idx === 0 ? bulkQuantity : null,
       bulkAsin: idx === 0 ? bulkAsin : null,
+      isDifferentBrand: c.isDifferentBrand ?? false,
     };
   });
 }

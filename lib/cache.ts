@@ -11,6 +11,7 @@ type AmazonCachedCandidate = {
   price: number | null; productName: string; asin: string | null;
   imageUrl?: string | null; regularPrice: number | null;
   bulkPrice: number | null; bulkQuantity: number | null; bulkAsin: string | null;
+  isDifferentBrand?: boolean;
 };
 type WalmartCachedCandidate = {
   price: number | null; productName: string; url?: string | null; imageUrl?: string | null;
