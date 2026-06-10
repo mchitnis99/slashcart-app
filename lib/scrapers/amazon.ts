@@ -198,7 +198,13 @@ export async function scrapeAmazonPrice(itemName: string, pricePaid?: number, pr
   const byRelevanceThenPrice = (a: Candidate, b: Candidate) => b.relevance - a.relevance || a.price - b.price;
 
   if (hasBrand) {
-    const sameBrandPool = [...standard, ...specialty].sort(byRelevanceThenPrice);
+    // Standard variants always win the primary slot over specialty/special-edition
+    // products (e.g. a "Special Edition" collab shouldn't outrank the regular product)
+    // when any standard variant exists; specialty results are appended after for
+    // consideration as variant pills only.
+    const sortedStandard = [...standard].sort(byRelevanceThenPrice);
+    const sortedSpecialty = [...specialty].sort(byRelevanceThenPrice);
+    const sameBrandPool = sortedStandard.length > 0 ? [...sortedStandard, ...sortedSpecialty] : sortedSpecialty;
     differentBrandPool = [...differentBrandStandard, ...differentBrandSpecialty].sort(byRelevanceThenPrice);
     // Rule 5: never silently substitute — fall back to a different brand only when
     // no same-brand result exists at all, and it's labeled via isDifferentBrand below.

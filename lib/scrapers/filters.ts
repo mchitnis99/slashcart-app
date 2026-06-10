@@ -10,6 +10,9 @@ export const SPECIALTY_WORDS = [
   "plus", "pro", "ultra", "clinical", "maximum", "complete",
   "gluten-free", "gluten free", "blend", "alternative", "vegan",
   "keto", "paleo", "non-gmo", "plant-based",
+  // Limited-run / collaboration editions — deprioritise in favor of the standard product
+  "special edition", "limited edition", "limited", "collaboration", "collab",
+  "x mike's", "savory-sweet",
 ];
 
 // Hard-exclude results containing these subtype words when the query
@@ -83,6 +86,20 @@ export function relevanceScore(productName: string, query: string): number {
   if (keywords.length === 0) return 0;
   const nameWordSet = new Set(productName.toLowerCase().split(/\W+/).filter(Boolean));
   return keywords.filter((kw) => nameWordSet.has(kw)).length;
+}
+
+// Stricter than isRelevant's threshold: every significant (non-stopword, length>2) word
+// from the query must appear in the product name. Used to validate cached results, where
+// even one missing significant word (e.g. "raisin") can mean a different product entirely
+// (e.g. "Shredded Wheat" vs "Raisin Bran" both share "Post" + "Bran").
+export function matchesAllKeywords(productName: string, query: string): boolean {
+  const keywords = query
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((w) => w.length > 2 && !STOP_WORDS.has(w));
+  if (keywords.length === 0) return true;
+  const nameWordSet = new Set(productName.toLowerCase().split(/\W+/).filter(Boolean));
+  return keywords.every((kw) => nameWordSet.has(kw));
 }
 
 export function isRelevant(productName: string, query: string, store?: string): boolean {

@@ -3,7 +3,7 @@ export const maxDuration = 60;
 import { getCachedPrice, setCachedPrice } from "@/lib/cache";
 import { type ParsedUnit } from "@/lib/utils/parseUnit";
 import { parseSize, toComparableSize } from "@/lib/utils/parseSize";
-import { extractBrands, passesBrandCheck, isStoreBrand, isRelevant, passesNegativeKeywords } from "@/lib/scrapers/filters";
+import { extractBrands, passesBrandCheck, isStoreBrand, isRelevant, passesNegativeKeywords, matchesAllKeywords } from "@/lib/scrapers/filters";
 
 type GroceryItem = {
   name: string;
@@ -128,6 +128,10 @@ function isCachedAmazonStillValid(item: GroceryItem, amazon: AmazonRawBase): boo
   }
   if (!isRelevant(amazon.productName, item.name, "amazon")) return false;
   if (!passesNegativeKeywords(amazon.productName, item.name, "amazon")) return false;
+  // Every significant query word (e.g. "raisin", "bran") must appear in the cached
+  // product name — isRelevant's looser threshold can let a different product
+  // (e.g. "Shredded Wheat") through just by sharing the brand and one descriptor.
+  if (!matchesAllKeywords(amazon.productName, item.name)) return false;
   return true;
 }
 
