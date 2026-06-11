@@ -235,9 +235,9 @@ export default function GroceryInput() {
           placeholder="Paste your grocery list — we'll find savings on pantry staples, packaged goods, and household supplies. Fresh produce, meat, and dairy not included."
           rows={4}
           disabled={loading}
-          className="w-full rounded-xl border border-slate-700 bg-[#0f1f3d]/60 text-[#e2e8f0] placeholder-[#475569] p-3 text-sm leading-relaxed resize-none focus:outline-none focus:ring-2 focus:ring-[#22c55e] transition disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full rounded-xl border-2 border-[#3b5278] bg-[#0f1f3d]/60 text-[#e2e8f0] placeholder-[#475569] p-3 text-sm leading-relaxed resize-none focus:outline-none focus:ring-2 focus:ring-[#22c55e] transition disabled:opacity-50 disabled:cursor-not-allowed"
         />
-        <p className="mt-1.5 text-xs text-white/30 px-1">
+        <p className="mt-1.5 text-xs text-[#64748b] px-1">
           Works best for: canned goods, dry goods, cleaning supplies, personal care, and paper products
         </p>
       </div>
@@ -375,7 +375,7 @@ function PhotoCaptureZone({
               ? "border-[#22c55e] bg-[#0f2030] text-[#22c55e]"
               : primary
               ? "border-[#22c55e]/80 bg-[#0d2416] hover:border-[#22c55e] hover:bg-[#0f2030] text-[#94a3b8] hover:text-[#22c55e]"
-              : "border-[#3b5278] bg-[#0f1f3d]/40 hover:border-[#22c55e] hover:bg-[#0f2030] text-[#94a3b8] hover:text-[#22c55e]"
+              : "border-[#3b82f6]/60 bg-[#0d1b33] hover:border-[#3b82f6] hover:bg-[#0f2030] text-[#94a3b8] hover:text-[#3b82f6]"
           }`}
         >
           <span className={primary ? "text-3xl" : "text-2xl"}>{emoji}</span>
