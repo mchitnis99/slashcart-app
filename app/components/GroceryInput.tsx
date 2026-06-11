@@ -228,7 +228,7 @@ export default function GroceryInput() {
 
       {/* Option 3: Type your list (de-emphasized) */}
       <div>
-        <p className="text-[#64748b] text-xs font-medium mb-2">✏️ Type your list</p>
+        <p className="text-white text-xs font-medium mb-2">✏️ Type your list</p>
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -237,8 +237,11 @@ export default function GroceryInput() {
           disabled={loading}
           className="w-full rounded-xl border-2 border-[#3b5278] bg-[#0f1f3d]/60 text-[#e2e8f0] placeholder-[#475569] p-3 text-sm leading-relaxed resize-none focus:outline-none focus:ring-2 focus:ring-[#22c55e] transition disabled:opacity-50 disabled:cursor-not-allowed"
         />
-        <p className="mt-1.5 text-xs text-[#64748b] px-1">
+        <p className="mt-1.5 text-xs text-slate-300 px-1">
           Works best for: canned goods, dry goods, cleaning supplies, personal care, and paper products
+        </p>
+        <p className="mt-1 text-xs text-yellow-400/70 px-1">
+          💡 Tip: The more specific, the better — include brand, size, and variant (e.g. &ldquo;Tonnino Yellowfin Tuna Fillets Olive Oil 6.7oz&rdquo;). Size matters most for accurate matches.
         </p>
       </div>
 
@@ -313,7 +316,7 @@ function PhotoCaptureZone({
   return (
     <div>
       <div className="flex items-center gap-2 mb-1 flex-wrap">
-        <p className={primary ? "text-[#e2e8f0] text-base font-bold" : "text-[#94a3b8] text-xs font-medium"}>
+        <p className={primary ? "text-[#e2e8f0] text-base font-bold" : "text-white text-xs font-medium"}>
           {emoji} {label}
         </p>
         {primary && (
@@ -322,7 +325,7 @@ function PhotoCaptureZone({
           </span>
         )}
       </div>
-      <p className={primary ? "text-[#94a3b8] text-sm mb-3" : "text-[#64748b] text-xs mb-3"}>{subtext}</p>
+      <p className={primary ? "text-[#94a3b8] text-sm mb-3" : "text-slate-300 text-xs mb-3"}>{subtext}</p>
 
       {previews.length > 0 ? (
         <div className="space-y-3">
