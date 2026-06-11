@@ -63,6 +63,41 @@ function defaultStore(item: PricedItem): "amazon" | "walmart" {
   return getWinners(item).walmartCheapest ? "walmart" : "amazon";
 }
 
+// PPU-normalized savings: how much cheaper it'd be to buy the same quantity as the
+// shelf label at the found product's per-unit price. Falls back to a raw price
+// difference (flagged via `approx`) when the shelf label's size can't be normalized
+// to the same unit as the found product. Returns `lowerPrice: true` (no $ figure)
+// when the found product's own size can't be parsed at all.
+function computeSavings(
+  pricePaid: number | null | undefined,
+  shelfQuantity: number,
+  shelfUnit: string,
+  recPrice: number | null,
+  recProductName: string | null
+): { amount: number | null; approx: boolean; lowerPrice: boolean } {
+  if (recPrice === null || !pricePaid || pricePaid <= 0) {
+    return { amount: null, approx: false, lowerPrice: false };
+  }
+
+  const recNorm = toComparableSize(recProductName ? parseSize(recProductName) : null);
+  const recNormPPU = recNorm ? recPrice / recNorm.quantity : null;
+
+  if (recNormPPU === null) {
+    return { amount: null, approx: false, lowerPrice: recPrice < pricePaid };
+  }
+
+  const shelfNorm = shelfQuantity > 0 && shelfUnit
+    ? toComparableSize({ quantity: shelfQuantity, unit: shelfUnit })
+    : null;
+  const shelfPpu = shelfNorm ? pricePaid / shelfNorm.quantity : null;
+
+  if (shelfPpu !== null && shelfNorm!.unit === recNorm!.unit) {
+    return { amount: pricePaid - recNormPPU * shelfNorm!.quantity, approx: false, lowerPrice: false };
+  }
+
+  return { amount: pricePaid - recPrice, approx: true, lowerPrice: false };
+}
+
 // Compute deduplicated pill labels for a set of variant candidates.
 // If two candidates produce the same base label, append the size to distinguish them.
 function getVariantLabels(variants: Array<{ productName: string }>, itemName: string): string[] {
@@ -187,6 +222,8 @@ function PricedItemCard({
 
   const { amazonCheapest, walmartCheapest } = getWinners({ ...item, amazon: effectiveAmazon, walmart: effectiveWalmart });
   const recommendedPrice = amazonCheapest ? effectiveAmazon.price : effectiveWalmart.price;
+  const recommendedProductName = amazonCheapest ? effectiveAmazon.productName : effectiveWalmart.productName;
+  const savings = computeSavings(item.pricePaid, item.quantity, item.unit, recommendedPrice, recommendedProductName);
 
   // Normalized PPU for cross-store savings % (same unit after lb→oz etc. conversion)
   const amazonNorm = toComparableSize(amazonUnit);
@@ -239,8 +276,10 @@ function PricedItemCard({
               You paid ${item.pricePaid.toFixed(2)}{receiptStore ? ` at ${receiptStore}` : ""}
             </span>
             {recommendedPrice !== null && (
-              recommendedPrice < item.pricePaid
-                ? <span className="text-[#22c55e] text-xs font-medium">Save ${(item.pricePaid - recommendedPrice).toFixed(2)} vs. shelf price</span>
+              savings.amount !== null && savings.amount > 0
+                ? <span className="text-[#22c55e] text-xs font-medium">Save {savings.approx ? "~" : ""}${savings.amount.toFixed(2)} vs. shelf price</span>
+                : savings.lowerPrice
+                ? <span className="text-[#22c55e] text-xs font-medium">Lower price</span>
                 : <span className="text-[#22c55e] text-xs font-medium">Good price ✓</span>
             )}
           </div>
@@ -709,29 +748,25 @@ export default function ResultsPage() {
     : 0;
   const totalCount = groceryItems.length;
 
-  // Savings-only totals: include only items where our recommended price beats pricePaid.
-  // Items where recPrice >= pricePaid ("Good price ✓") are excluded from both sides
-  // so they don't suppress the savings figure.
+  // Savings-only totals: include only items with positive PPU-normalized savings
+  // (mirrors the per-item "Save $X vs. shelf price" calculation).
   const savingsEntries = allLoaded
-    ? (pricedItems.filter(Boolean) as PricedItem[]).filter((item) => {
-        if (!item.pricePaid || item.pricePaid <= 0) return false;
-        const { amazonCheapest } = getWinners(item);
-        const recPrice = (amazonCheapest ? item.amazon.price : item.walmart.price) ?? null;
-        return recPrice !== null && recPrice < item.pricePaid;
-      })
+    ? (pricedItems.filter(Boolean) as PricedItem[])
+        .map((item) => {
+          const { amazonCheapest } = getWinners(item);
+          const recPrice = amazonCheapest ? item.amazon.price : item.walmart.price;
+          const recProductName = amazonCheapest ? item.amazon.productName : item.walmart.productName;
+          return { item, savings: computeSavings(item.pricePaid, item.quantity, item.unit, recPrice, recProductName) };
+        })
+        .filter(({ savings }) => savings.amount !== null && savings.amount > 0)
     : [];
-  const savingsReceiptTotal = round(savingsEntries.reduce((s, item) => s + (item.pricePaid ?? 0), 0));
-  const savingsSlashcartTotal = round(savingsEntries.reduce((s, item) => {
-    const { amazonCheapest } = getWinners(item);
-    return s + ((amazonCheapest ? item.amazon.price : item.walmart.price) ?? 0);
-  }, 0));
   const pantryReceiptTotal = allLoaded
     ? round((pricedItems.filter(Boolean) as PricedItem[]).reduce(
         (s, item) => s + (item.pricePaid && item.pricePaid > 0 ? item.pricePaid : 0), 0
       ))
     : 0;
   const totalReceiptSavings = allLoaded && pantryReceiptTotal > 0 && savingsEntries.length > 0
-    ? round(savingsReceiptTotal - savingsSlashcartTotal)
+    ? round(savingsEntries.reduce((s, { savings }) => s + (savings.amount ?? 0), 0))
     : 0;
   const savingsPct = pantryReceiptTotal > 0
     ? Math.round((totalReceiptSavings / pantryReceiptTotal) * 100)
