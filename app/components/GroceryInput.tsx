@@ -164,28 +164,30 @@ export default function GroceryInput() {
     <form onSubmit={handleSubmit} className="w-full max-w-2xl mx-auto space-y-4">
 
       {/* Option 1: Snap shelf labels (primary) */}
-      <PhotoCaptureZone
-        emoji="📷"
-        label="Snap shelf labels"
-        subtext="In the store? Snap each shelf label to see if it's cheaper on Amazon or Walmart"
-        dropzonePrompt="Tap to open your camera — photograph each item one by one, then hit Find Best Prices"
-        dropzoneSubtext="One photo per shelf label — we'll read the brand, size, and store price"
-        files={shelfFiles}
-        previews={shelfPreviews}
-        loading={loading}
-        isDragging={dragTarget === "shelf"}
-        inputRef={shelfInputRef}
-        primary
-        onCapture={(files) => void captureFiles("shelf", files)}
-        onRemove={(i) => removeImage("shelf", i)}
-        onDragOver={(e) => { e.preventDefault(); setDragTarget("shelf"); }}
-        onDragLeave={(e) => { e.preventDefault(); setDragTarget(null); }}
-        onDrop={(e) => {
-          e.preventDefault();
-          setDragTarget(null);
-          void captureFiles("shelf", Array.from(e.dataTransfer.files ?? []));
-        }}
-      />
+      <div className="rounded-2xl border border-[#22c55e]/30 bg-[#10291c]/50 p-4">
+        <PhotoCaptureZone
+          emoji="📷"
+          label="Snap shelf labels"
+          subtext="In the store? Snap each shelf label to see if it's cheaper on Amazon or Walmart"
+          dropzonePrompt="Tap to open your camera — photograph each item one by one, then hit Find Best Prices"
+          dropzoneSubtext="One photo per shelf label — we'll read the brand, size, and store price"
+          files={shelfFiles}
+          previews={shelfPreviews}
+          loading={loading}
+          isDragging={dragTarget === "shelf"}
+          inputRef={shelfInputRef}
+          primary
+          onCapture={(files) => void captureFiles("shelf", files)}
+          onRemove={(i) => removeImage("shelf", i)}
+          onDragOver={(e) => { e.preventDefault(); setDragTarget("shelf"); }}
+          onDragLeave={(e) => { e.preventDefault(); setDragTarget(null); }}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragTarget(null);
+            void captureFiles("shelf", Array.from(e.dataTransfer.files ?? []));
+          }}
+        />
+      </div>
 
       {/* Divider */}
       <div className="flex items-center gap-3">
@@ -310,8 +312,17 @@ function PhotoCaptureZone({
 }) {
   return (
     <div>
-      <p className="text-[#e2e8f0] text-sm font-semibold mb-1">{emoji} {label}</p>
-      <p className="text-[#94a3b8] text-xs mb-3">{subtext}</p>
+      <div className="flex items-center gap-2 mb-1 flex-wrap">
+        <p className={primary ? "text-[#e2e8f0] text-base font-bold" : "text-[#94a3b8] text-xs font-medium"}>
+          {emoji} {label}
+        </p>
+        {primary && (
+          <span className="text-[10px] font-bold uppercase tracking-wide bg-[#22c55e] text-[#0b1426] px-2 py-0.5 rounded-full">
+            Recommended
+          </span>
+        )}
+      </div>
+      <p className={primary ? "text-[#94a3b8] text-sm mb-3" : "text-[#64748b] text-xs mb-3"}>{subtext}</p>
 
       {previews.length > 0 ? (
         <div className="space-y-3">
@@ -357,12 +368,14 @@ function PhotoCaptureZone({
           onDragLeave={onDragLeave}
           onDrop={onDrop}
           disabled={loading}
-          className={`w-full rounded-xl border border-dashed text-sm flex flex-col items-center gap-2 transition disabled:opacity-50 disabled:cursor-not-allowed ${
+          className={`w-full rounded-xl border-2 text-sm flex flex-col items-center gap-2 transition disabled:opacity-50 disabled:cursor-not-allowed ${
             primary ? "py-8" : "py-6"
           } ${
             isDragging
               ? "border-[#22c55e] bg-[#0f2030] text-[#22c55e]"
-              : "border-[#22c55e]/40 bg-[#0d2416] hover:border-[#22c55e] hover:bg-[#0f2030] text-[#94a3b8] hover:text-[#22c55e]"
+              : primary
+              ? "border-[#22c55e]/80 bg-[#0d2416] hover:border-[#22c55e] hover:bg-[#0f2030] text-[#94a3b8] hover:text-[#22c55e]"
+              : "border-[#3b5278] bg-[#0f1f3d]/40 hover:border-[#22c55e] hover:bg-[#0f2030] text-[#94a3b8] hover:text-[#22c55e]"
           }`}
         >
           <span className={primary ? "text-3xl" : "text-2xl"}>{emoji}</span>
