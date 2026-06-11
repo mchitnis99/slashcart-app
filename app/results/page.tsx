@@ -225,6 +225,15 @@ function PricedItemCard({
   const recommendedProductName = amazonCheapest ? effectiveAmazon.productName : effectiveWalmart.productName;
   const savings = computeSavings(item.pricePaid, item.quantity, item.unit, recommendedPrice, recommendedProductName);
 
+  // Hero savings line: PPU-normalized saving for the recommended (best-value) store,
+  // expressed as a percentage of the shelf price, with a PPU-comparison subline.
+  const hasHeroSaving = savings.amount !== null && savings.amount > 0 && item.pricePaid != null;
+  const heroStoreName = amazonCheapest ? "Amazon" : "Walmart";
+  const heroPct = hasHeroSaving ? Math.round((savings.amount! / item.pricePaid!) * 100) : null;
+  const heroPPU = amazonCheapest ? amazonPricePerUnit : walmartPricePerUnit;
+  const heroUnit = amazonCheapest ? amazonUnit : walmartUnit;
+  const shelfPpu = item.pricePaid != null && item.quantity > 0 ? item.pricePaid / item.quantity : null;
+
   // Normalized PPU for cross-store savings % (same unit after lb→oz etc. conversion)
   const amazonNorm = toComparableSize(amazonUnit);
   const walmartNorm = toComparableSize(walmartUnit);
@@ -239,18 +248,18 @@ function PricedItemCard({
   const walmartVsAmazonPct = canCompare && walmartNormPPU! < amazonNormPPU!
     ? Math.round((1 - walmartNormPPU! / amazonNormPPU!) * 100)
     : null;
-  // Line 1: savings vs receipt price (only when store price < pricePaid)
-  const paidRef = item.pricePaid && item.pricePaid > 0 ? item.pricePaid : null;
-  const amazonVsReceiptPct = paidRef && effectiveAmazon.price !== null && effectiveAmazon.price < paidRef
-    ? Math.round(((paidRef - effectiveAmazon.price) / paidRef) * 100)
-    : null;
-  const walmartVsReceiptPct = paidRef && effectiveWalmart.price !== null && effectiveWalmart.price < paidRef
-    ? Math.round(((paidRef - effectiveWalmart.price) / paidRef) * 100)
-    : null;
 
   const hasBulk = effectiveAmazon.bulkPrice !== null && effectiveAmazon.bulkQuantity !== null;
   const bulkPerUnit = effectiveAmazon.bulkPrice !== null && effectiveAmazon.bulkQuantity !== null
     ? effectiveAmazon.bulkPrice / effectiveAmazon.bulkQuantity
+    : null;
+
+  // Action line: the size/price of the listing to buy.
+  const amazonActionLabel = amazonUnit && effectiveAmazon.price !== null
+    ? `Buy ${amazonUnit.quantity} ${amazonUnit.unit} for $${(effectiveAmazon.regularPrice ?? effectiveAmazon.price).toFixed(2)}`
+    : null;
+  const walmartActionLabel = walmartUnit && effectiveWalmart.price !== null
+    ? `Buy ${walmartUnit.quantity} ${walmartUnit.unit} for $${effectiveWalmart.price.toFixed(2)}`
     : null;
 
   const checkedLabel = `Checked ${new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
@@ -271,18 +280,32 @@ function PricedItemCard({
       <div className="mb-3 min-w-0">
         <p className="font-semibold text-white capitalize truncate">{item.name}</p>
         {item.pricePaid != null && (
-          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-            <span className="text-[#475569] text-xs">
-              You paid ${item.pricePaid.toFixed(2)}{receiptStore ? ` at ${receiptStore}` : ""}
-            </span>
-            {recommendedPrice !== null && (
-              savings.amount !== null && savings.amount > 0
-                ? <span className="text-[#22c55e] text-xs font-medium">Save {savings.approx ? "~" : ""}${savings.amount.toFixed(2)} vs. shelf price</span>
-                : savings.lowerPrice
-                ? <span className="text-[#22c55e] text-xs font-medium">Lower price</span>
-                : <span className="text-[#22c55e] text-xs font-medium">Good price ✓</span>
-            )}
-          </div>
+          hasHeroSaving ? (
+            <>
+              <p className="text-[#22c55e] text-lg font-bold leading-tight mt-1">
+                Save {heroPct}% on {heroStoreName}
+              </p>
+              {shelfPpu !== null && heroPPU !== null && heroUnit && (
+                <p className="text-[#94a3b8] text-xs mt-0.5">
+                  Store price ${shelfPpu.toFixed(2)}/{item.unit} → {heroStoreName} ${heroPPU.toFixed(2)}/{heroUnit.unit}
+                </p>
+              )}
+              <p className="text-[#475569] text-xs mt-0.5">
+                In store you&apos;ll pay ${item.pricePaid.toFixed(2)}{receiptStore ? ` at ${receiptStore}` : ""}
+              </p>
+            </>
+          ) : (
+            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+              <span className="text-[#475569] text-xs">
+                You paid ${item.pricePaid.toFixed(2)}{receiptStore ? ` at ${receiptStore}` : ""}
+              </span>
+              {recommendedPrice !== null && (
+                savings.lowerPrice
+                  ? <span className="text-[#22c55e] text-xs font-medium">Lower price</span>
+                  : <span className="text-[#22c55e] text-xs font-medium">Good price ✓</span>
+              )}
+            </div>
+          )
         )}
         {(amazonSizeUnknown || walmartSizeUnknown) && (
           <p className="text-[#f59e0b] text-[10px] mt-0.5">
@@ -421,9 +444,9 @@ function PricedItemCard({
                       {effectiveAmazon.productName}
                     </p>
                   )}
-                  {amazonVsReceiptPct !== null && amazonVsReceiptPct > 0 && (
-                    <p className="text-[#22c55e] text-[10px] leading-none mb-1">
-                      Save {amazonVsReceiptPct}% vs. shelf price
+                  {amazonActionLabel && (
+                    <p className="text-[#94a3b8] text-[10px] leading-none mb-1">
+                      {amazonActionLabel}
                     </p>
                   )}
                   {amazonVsWalmartPct !== null && amazonVsWalmartPct > 0 && (
@@ -515,9 +538,9 @@ function PricedItemCard({
                   {effectiveWalmart.productName}
                 </p>
               )}
-              {walmartVsReceiptPct !== null && walmartVsReceiptPct > 0 && (
-                <p className="text-[#22c55e] text-[10px] leading-none mb-1">
-                  Save {walmartVsReceiptPct}% vs. shelf price
+              {walmartActionLabel && (
+                <p className="text-[#94a3b8] text-[10px] leading-none mb-1">
+                  {walmartActionLabel}
                 </p>
               )}
               {walmartVsAmazonPct !== null && walmartVsAmazonPct > 0 && (
