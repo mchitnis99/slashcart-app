@@ -1,5 +1,5 @@
 import { ClipboardList, ShoppingCart, TrendingDown } from "lucide-react";
-import EmailReminder from "./components/EmailReminder";
+import TextReminderButton from "./components/TextReminderButton";
 import GroceryInput from "./components/GroceryInput";
 
 function SlashCartLogo() {
@@ -91,7 +91,7 @@ export default function HomePage() {
 
       <ExampleResultCard />
 
-      <EmailReminder />
+      <TextReminderButton />
 
       <GroceryInput />
 
