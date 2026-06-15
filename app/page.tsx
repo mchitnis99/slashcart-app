@@ -1,4 +1,5 @@
 import { ClipboardList, ShoppingCart, TrendingDown } from "lucide-react";
+import EmailReminder from "./components/EmailReminder";
 import GroceryInput from "./components/GroceryInput";
 
 function SlashCartLogo() {
@@ -28,6 +29,69 @@ function SlashCartLogo() {
   );
 }
 
+function ExampleResultCard() {
+  return (
+    <div className="max-w-2xl mx-auto w-full mb-6 sm:mb-8">
+      <div className="rounded-xl border border-[#1e3050] bg-[#111827] px-3 py-3 sm:px-4 sm:py-4 overflow-hidden relative">
+        <span className="absolute top-3 right-3 text-[9px] font-semibold uppercase tracking-wide text-[#64748b] bg-[#1e3050] rounded px-1.5 py-0.5">
+          Example
+        </span>
+        <div className="mb-3 min-w-0 pr-16">
+          <p className="font-semibold text-white capitalize truncate">Heinz Ketchup</p>
+          <p className="text-[#22c55e] text-lg font-bold leading-tight mt-1">
+            Save 48% on Amazon
+          </p>
+          <p className="text-[#94a3b8] text-xs mt-0.5">
+            Store price $0.12/oz → Amazon $0.07/oz
+          </p>
+          <p className="text-[#475569] text-xs mt-0.5">
+            In store you&apos;ll pay $3.99
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3">
+          {/* Amazon — best value */}
+          <div className="rounded-lg p-3 border border-[#22c55e]/50 bg-[#0a2018] overflow-hidden">
+            <div className="flex items-center gap-1.5 mb-2 min-w-0">
+              <p className="text-[#94a3b8] text-xs font-medium shrink-0">Amazon</p>
+              <span className="text-[9px] font-semibold text-[#22c55e] bg-[#22c55e]/10 border border-[#22c55e]/30 rounded px-1 py-0.5 leading-none shrink-0">
+                Best value
+              </span>
+            </div>
+            <div className="w-20 h-20 mb-2 rounded-md bg-[#1a2d3f]" />
+            <p className="font-bold text-xl leading-none mb-0.5 text-[#22c55e]">
+              $0.07/oz
+            </p>
+            <p className="text-[#94a3b8] text-xs leading-none mb-1">
+              $2.09 · 32 oz
+            </p>
+            <p className="text-[#94a3b8] text-[10px] leading-none mb-1">
+              Buy 32 oz for $2.09
+            </p>
+          </div>
+
+          {/* Walmart */}
+          <div className="rounded-lg p-3 border border-[#334155] bg-[#1a2d3f] overflow-hidden">
+            <div className="flex items-center gap-1.5 mb-2 min-w-0">
+              <p className="text-[#94a3b8] text-xs font-medium shrink-0">Walmart</p>
+            </div>
+            <div className="w-20 h-20 mb-2 rounded-md bg-[#1a2d3f]" />
+            <p className="font-bold text-xl leading-none mb-0.5 text-white">
+              $0.09/oz
+            </p>
+            <p className="text-[#94a3b8] text-xs leading-none mb-1">
+              $2.89 · 32 oz
+            </p>
+            <p className="text-[#94a3b8] text-[10px] leading-none mb-1">
+              Buy 32 oz for $2.89
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function HomePage() {
   return (
     <main className="flex flex-col flex-1 w-full overflow-x-hidden px-4 py-12 sm:py-20">
@@ -36,15 +100,16 @@ export default function HomePage() {
           <SlashCartLogo />
         </div>
         <h1 className="text-3xl sm:text-5xl font-bold text-[#e2e8f0] leading-tight mb-3">
-          Let&apos;s Slash Your Grocery Bill
+          Find out if Amazon&apos;s cheaper — before you buy
         </h1>
-        <p className="text-[#22c55e] font-semibold text-lg sm:text-xl mb-3">
-          Most people overpay because they only ever look at shelf prices.
-        </p>
         <p className="text-[#94a3b8] text-base sm:text-lg max-w-lg mx-auto">
           We unlock the savings hidden in per-unit pricing across Amazon and Walmart — for every pantry item on your list in one click.
         </p>
       </div>
+
+      <ExampleResultCard />
+
+      <EmailReminder />
 
       <GroceryInput />
 
