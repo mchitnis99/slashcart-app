@@ -42,10 +42,10 @@ function ExampleResultCard() {
             Save 48% on Amazon
           </p>
           <p className="text-[#94a3b8] text-xs mt-0.5">
-            Store price $0.12/oz → Amazon $0.07/oz
+            Store price $0.29/oz → Amazon $0.15/oz
           </p>
           <p className="text-[#475569] text-xs mt-0.5">
-            In store you&apos;ll pay $3.99
+            In store you&apos;ll pay $4.06
           </p>
         </div>
 
@@ -58,15 +58,14 @@ function ExampleResultCard() {
                 Best value
               </span>
             </div>
-            <div className="w-20 h-20 mb-2 rounded-md bg-[#1a2d3f]" />
             <p className="font-bold text-xl leading-none mb-0.5 text-[#22c55e]">
-              $0.07/oz
+              $0.15/oz
             </p>
             <p className="text-[#94a3b8] text-xs leading-none mb-1">
-              $2.09 · 32 oz
+              $2.09 · 14 oz
             </p>
             <p className="text-[#94a3b8] text-[10px] leading-none mb-1">
-              Buy 32 oz for $2.09
+              Buy 14 oz for $2.09
             </p>
           </div>
         </div>
@@ -86,7 +85,7 @@ export default function HomePage() {
           Find out if Amazon&apos;s cheaper — before you buy
         </h1>
         <p className="text-[#94a3b8] text-base sm:text-lg max-w-lg mx-auto">
-          We unlock the savings hidden in per-unit pricing across Amazon and Walmart — for every pantry item on your list in one click.
+          Snap a shelf label in the store and we&apos;ll tell you if Amazon has it cheaper — instantly.
         </p>
       </div>
 
