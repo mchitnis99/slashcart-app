@@ -49,7 +49,7 @@ function ExampleResultCard() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3">
+        <div className="grid grid-cols-1">
           {/* Amazon — best value */}
           <div className="rounded-lg p-3 border border-[#22c55e]/50 bg-[#0a2018] overflow-hidden">
             <div className="flex items-center gap-1.5 mb-2 min-w-0">
@@ -67,23 +67,6 @@ function ExampleResultCard() {
             </p>
             <p className="text-[#94a3b8] text-[10px] leading-none mb-1">
               Buy 32 oz for $2.09
-            </p>
-          </div>
-
-          {/* Walmart */}
-          <div className="rounded-lg p-3 border border-[#334155] bg-[#1a2d3f] overflow-hidden">
-            <div className="flex items-center gap-1.5 mb-2 min-w-0">
-              <p className="text-[#94a3b8] text-xs font-medium shrink-0">Walmart</p>
-            </div>
-            <div className="w-20 h-20 mb-2 rounded-md bg-[#1a2d3f]" />
-            <p className="font-bold text-xl leading-none mb-0.5 text-white">
-              $0.09/oz
-            </p>
-            <p className="text-[#94a3b8] text-xs leading-none mb-1">
-              $2.89 · 32 oz
-            </p>
-            <p className="text-[#94a3b8] text-[10px] leading-none mb-1">
-              Buy 32 oz for $2.89
             </p>
           </div>
         </div>
