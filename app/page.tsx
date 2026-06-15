@@ -32,7 +32,7 @@ function SlashCartLogo() {
 function ExampleResultCard() {
   return (
     <div className="max-w-2xl mx-auto w-full mb-6 sm:mb-8">
-      <div className="rounded-xl border border-[#1e3050] bg-[#111827] px-3 py-3 sm:px-4 sm:py-4 overflow-hidden relative">
+      <div className="rounded-xl border-2 border-[#3b5278] bg-[#111827] px-3 py-3 sm:px-4 sm:py-4 overflow-hidden relative">
         <span className="absolute top-3 right-3 text-[9px] font-semibold uppercase tracking-wide text-[#64748b] bg-[#1e3050] rounded px-1.5 py-0.5">
           Example
         </span>
@@ -45,7 +45,7 @@ function ExampleResultCard() {
             Store price $0.29/oz → Amazon $0.15/oz
           </p>
           <p className="text-[#475569] text-xs mt-0.5">
-            In store you&apos;ll pay $4.06
+            In store you&apos;ll pay $3.99
           </p>
         </div>
 
