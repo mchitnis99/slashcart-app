@@ -1,4 +1,5 @@
 import { ClipboardList, ShoppingCart, TrendingDown } from "lucide-react";
+import Image from "next/image";
 import TextReminderButton from "./components/TextReminderButton";
 import GroceryInput from "./components/GroceryInput";
 
@@ -35,17 +36,20 @@ function ExampleResultCard() {
       <p className="text-[#22c55e] text-xs font-semibold uppercase tracking-wide mb-2 px-1">
         See what you could save:
       </p>
-      <div className="rounded-xl border-2 border-[#3b5278] bg-[#111827] px-3 py-3 sm:px-4 sm:py-4 overflow-hidden relative">
-        <span className="absolute top-3 right-3 text-[10px] font-bold uppercase tracking-wide text-[#22c55e] bg-[#22c55e]/10 border border-[#22c55e]/30 rounded px-2 py-0.5">
-          Example
-        </span>
-        <div className="mb-3 min-w-0 pr-20">
+      <div className="rounded-xl border border-[#22c55e]/40 bg-[#0d1f0d] overflow-hidden">
+        <div className="flex items-center gap-2 border-b border-[#22c55e]/20 px-3 py-1.5 sm:px-4">
+          <span className="text-[10px] font-bold uppercase tracking-widest text-[#22c55e]/70">
+            Example result
+          </span>
+        </div>
+        <div className="px-3 pt-3 pb-3 sm:px-4 sm:pt-4 sm:pb-4">
+        <div className="mb-3 min-w-0">
           <p className="font-semibold text-white capitalize truncate">Heinz Ketchup</p>
           <p className="text-[#22c55e] text-lg font-bold leading-tight mt-1">
-            Save 48% on Amazon
+            Save 30% on Amazon
           </p>
           <p className="text-[#94a3b8] text-xs mt-0.5">
-            Store price $0.29/oz → Amazon $0.15/oz
+            Store price $0.29/oz → Amazon $0.20/oz
           </p>
           <p className="text-[#475569] text-xs mt-0.5">
             In store you&apos;ll pay $3.99
@@ -61,16 +65,27 @@ function ExampleResultCard() {
                 Best value
               </span>
             </div>
+            <div className="w-20 h-20 mb-2 rounded-md bg-[#0d1830] flex items-center justify-center overflow-hidden shrink-0">
+              <Image
+                src="https://m.media-amazon.com/images/I/71HRg2S2fbL._SL500_.jpg"
+                alt="HEINZ Tomato Ketchup 14 oz"
+                width={80}
+                height={80}
+                className="object-contain w-full h-full"
+                unoptimized
+              />
+            </div>
             <p className="font-bold text-xl leading-none mb-0.5 text-[#22c55e]">
-              $0.15/oz
+              $0.20/oz
             </p>
             <p className="text-[#94a3b8] text-xs leading-none mb-1">
-              $2.09 · 14 oz
+              $2.79 · 14 oz
             </p>
             <p className="text-[#94a3b8] text-[10px] leading-none mb-1">
-              Buy 14 oz for $2.09
+              Buy 14 oz for $2.79
             </p>
           </div>
+        </div>
         </div>
       </div>
     </div>
