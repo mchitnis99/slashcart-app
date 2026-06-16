@@ -196,36 +196,6 @@ export default function GroceryInput() {
         <div className="flex-1 h-px bg-[#1e3050]" />
       </div>
 
-      {/* Option 2: Snap product labels */}
-      <PhotoCaptureZone
-        emoji="📦"
-        label="Snap product labels"
-        subtext="At home? Photograph items to compare Amazon vs Walmart prices"
-        dropzonePrompt="Tap to open your camera — photograph each item one by one, then hit Find Best Prices"
-        dropzoneSubtext="One photo per item — we'll read the label for brand, size, and variant"
-        files={productFiles}
-        previews={productPreviews}
-        loading={loading}
-        isDragging={dragTarget === "product"}
-        inputRef={productInputRef}
-        onCapture={(files) => void captureFiles("product", files)}
-        onRemove={(i) => removeImage("product", i)}
-        onDragOver={(e) => { e.preventDefault(); setDragTarget("product"); }}
-        onDragLeave={(e) => { e.preventDefault(); setDragTarget(null); }}
-        onDrop={(e) => {
-          e.preventDefault();
-          setDragTarget(null);
-          void captureFiles("product", Array.from(e.dataTransfer.files ?? []));
-        }}
-      />
-
-      {/* Divider */}
-      <div className="flex items-center gap-3">
-        <div className="flex-1 h-px bg-[#1e3050]" />
-        <span className="text-[#475569] text-xs uppercase tracking-widest">or</span>
-        <div className="flex-1 h-px bg-[#1e3050]" />
-      </div>
-
       {/* Option 3: Type your list (de-emphasized) */}
       <div>
         <p className="text-white text-xs font-medium mb-2">✏️ Type your list</p>

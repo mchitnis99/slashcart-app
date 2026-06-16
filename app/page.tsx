@@ -32,11 +32,14 @@ function SlashCartLogo() {
 function ExampleResultCard() {
   return (
     <div className="max-w-2xl mx-auto w-full mb-6 sm:mb-8">
+      <p className="text-[#22c55e] text-xs font-semibold uppercase tracking-wide mb-2 px-1">
+        See what you could save:
+      </p>
       <div className="rounded-xl border-2 border-[#3b5278] bg-[#111827] px-3 py-3 sm:px-4 sm:py-4 overflow-hidden relative">
-        <span className="absolute top-3 right-3 text-[9px] font-semibold uppercase tracking-wide text-[#64748b] bg-[#1e3050] rounded px-1.5 py-0.5">
+        <span className="absolute top-3 right-3 text-[10px] font-bold uppercase tracking-wide text-[#22c55e] bg-[#22c55e]/10 border border-[#22c55e]/30 rounded px-2 py-0.5">
           Example
         </span>
-        <div className="mb-3 min-w-0 pr-16">
+        <div className="mb-3 min-w-0 pr-20">
           <p className="font-semibold text-white capitalize truncate">Heinz Ketchup</p>
           <p className="text-[#22c55e] text-lg font-bold leading-tight mt-1">
             Save 48% on Amazon
