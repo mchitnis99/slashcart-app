@@ -8,7 +8,7 @@ const supabase = createClient(
 export async function POST() {
   const { error } = await supabase
     .from("reminder_clicks")
-    .insert({ action: "text_reminder_click" });
+    .insert({ action: "share_click" });
 
   if (error) {
     console.error("[reminder-click]", error.message);
