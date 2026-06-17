@@ -56,10 +56,10 @@ export default function HomePage() {
           <SlashCartLogo />
         </div>
         <h1 className="text-3xl sm:text-5xl font-bold text-[#e2e8f0] leading-tight mb-3">
-          Find out what you overpaid — and what to order on Amazon instead.
+          Find out what you overpaid — and where to get it cheaper.
         </h1>
         <p className="text-[#94a3b8] text-base sm:text-lg max-w-lg mx-auto">
-          Got a grocery receipt? Find out what you overpaid — and what to order on Amazon instead.
+          Got a grocery receipt? Find out what you overpaid across Amazon and Walmart.
         </p>
       </div>
 

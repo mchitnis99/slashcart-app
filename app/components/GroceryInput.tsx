@@ -233,6 +233,8 @@ export default function GroceryInput() {
         }}
       />
 
+      <TextReminderButton />
+
       {/* Divider */}
       <div className="flex items-center gap-3">
         <div className="flex-1 h-px bg-[#1e3050]" />
@@ -252,8 +254,6 @@ export default function GroceryInput() {
           className="w-full rounded-xl border-2 border-[#3b5278] bg-[#0f1f3d]/60 text-[#e2e8f0] placeholder-[#475569] p-3 text-sm leading-relaxed resize-none focus:outline-none focus:ring-2 focus:ring-[#22c55e] transition disabled:opacity-50 disabled:cursor-not-allowed"
         />
       </div>
-
-      <TextReminderButton />
 
       {error && (
         <p className="text-red-400 text-sm bg-red-900/20 border border-red-800/40 rounded-lg px-4 py-2">
