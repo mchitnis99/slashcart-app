@@ -182,7 +182,7 @@ export default function GroceryInput() {
         <PhotoCaptureZone
           emoji="📄"
           label="Photograph your receipt"
-          subtext="Just got back from shopping? Photo your receipt and we'll show you what to order on Amazon instead — cheaper."
+          subtext="Got a recent receipt handy? Take a quick pic and we'll show you where to save next time on Amazon or Walmart."
           dropzonePrompt="Tap to upload your receipt photo — then hit Find Best Prices"
           dropzoneSubtext="We'll read every pantry item, what you paid, and find cheaper options"
           files={receiptFiles}
