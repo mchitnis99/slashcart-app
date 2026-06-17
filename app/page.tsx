@@ -34,7 +34,7 @@ function ExampleResultCard() {
   return (
     <div className="max-w-2xl mx-auto w-full mb-6 sm:mb-8">
       <p className="text-[#22c55e] text-xs font-semibold uppercase tracking-wide mb-2 px-1">
-        See what you could save:
+        Here&apos;s what a result looks like:
       </p>
       <div className="rounded-xl border border-[#22c55e]/40 bg-[#0d1f0d] overflow-hidden">
         <div className="flex items-center gap-2 border-b border-[#22c55e]/20 px-3 py-1.5 sm:px-4">
@@ -103,7 +103,7 @@ export default function HomePage() {
           Find out if Amazon&apos;s cheaper — before you buy
         </h1>
         <p className="text-[#94a3b8] text-base sm:text-lg max-w-lg mx-auto">
-          Snap a shelf label in the store and we&apos;ll tell you if Amazon has it cheaper — instantly.
+          Got a grocery receipt? Find out what you overpaid — and what to order on Amazon instead.
         </p>
       </div>
 

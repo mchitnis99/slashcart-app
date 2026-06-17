@@ -3,14 +3,17 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
-type CaptureMode = "shelf" | "product";
+type CaptureMode = "receipt" | "shelf" | "product";
 
 export default function GroceryInput() {
   const router = useRouter();
+  const receiptInputRef = useRef<HTMLInputElement>(null);
   const shelfInputRef = useRef<HTMLInputElement>(null);
   const productInputRef = useRef<HTMLInputElement>(null);
 
   const [text, setText] = useState("");
+  const [receiptFiles, setReceiptFiles] = useState<File[]>([]);
+  const [receiptPreviews, setReceiptPreviews] = useState<string[]>([]);
   const [shelfFiles, setShelfFiles] = useState<File[]>([]);
   const [shelfPreviews, setShelfPreviews] = useState<string[]>([]);
   const [productFiles, setProductFiles] = useState<File[]>([]);
@@ -23,8 +26,8 @@ export default function GroceryInput() {
   const hangTightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const photoMode: CaptureMode | null =
-    shelfFiles.length > 0 ? "shelf" : productFiles.length > 0 ? "product" : null;
-  const activeFiles = photoMode === "shelf" ? shelfFiles : photoMode === "product" ? productFiles : [];
+    receiptFiles.length > 0 ? "receipt" : shelfFiles.length > 0 ? "shelf" : productFiles.length > 0 ? "product" : null;
+  const activeFiles = photoMode === "receipt" ? receiptFiles : photoMode === "shelf" ? shelfFiles : photoMode === "product" ? productFiles : [];
 
   useEffect(() => {
     return () => {
@@ -35,7 +38,10 @@ export default function GroceryInput() {
   async function captureFiles(mode: CaptureMode, files: File[]) {
     if (files.length === 0) return;
     const previews = await Promise.all(files.map(fileToDataUrl));
-    if (mode === "shelf") {
+    if (mode === "receipt") {
+      setReceiptFiles((prev) => [...prev, ...files]);
+      setReceiptPreviews((prev) => [...prev, ...previews]);
+    } else if (mode === "shelf") {
       setShelfFiles((prev) => [...prev, ...files]);
       setShelfPreviews((prev) => [...prev, ...previews]);
     } else {
@@ -45,7 +51,10 @@ export default function GroceryInput() {
   }
 
   function removeImage(mode: CaptureMode, index: number) {
-    if (mode === "shelf") {
+    if (mode === "receipt") {
+      setReceiptFiles((prev) => prev.filter((_, i) => i !== index));
+      setReceiptPreviews((prev) => prev.filter((_, i) => i !== index));
+    } else if (mode === "shelf") {
       setShelfFiles((prev) => prev.filter((_, i) => i !== index));
       setShelfPreviews((prev) => prev.filter((_, i) => i !== index));
     } else {
@@ -111,6 +120,10 @@ export default function GroceryInput() {
         }
         items = results.flatMap((r) => r.items ?? []);
         excluded_items = results.flatMap((r) => r.excluded_items ?? []);
+        if (photoMode === "receipt" && results.length > 0) {
+          receipt_total = results[0].receipt_total ?? null;
+          receipt_store = results[0].receipt_store ?? null;
+        }
       } else {
         const res = await fetch("/api/parse-list", {
           method: "POST",
@@ -155,7 +168,7 @@ export default function GroceryInput() {
 
   const loadingLabel =
     loading && photoMode && photoProgress > 0
-      ? `Reading ${photoMode === "shelf" ? "shelf label" : "photo"} ${photoProgress} of ${activeFiles.length}…`
+      ? `Reading ${photoMode === "receipt" ? "receipt" : photoMode === "shelf" ? "shelf label" : "photo"} ${photoProgress} of ${activeFiles.length}…`
       : photoMode
         ? "Reading your photo…"
         : "Reading your list…";
@@ -163,31 +176,61 @@ export default function GroceryInput() {
   return (
     <form onSubmit={handleSubmit} className="w-full max-w-2xl mx-auto space-y-4">
 
-      {/* Option 1: Snap shelf labels (primary) */}
+      {/* Option 1: Photograph receipt (primary) */}
       <div className="rounded-2xl border border-[#22c55e]/30 bg-[#10291c]/50 p-4">
         <PhotoCaptureZone
-          emoji="📷"
-          label="Snap shelf labels"
-          subtext="In the store? Snap each shelf label to see if it's cheaper on Amazon or Walmart"
-          dropzonePrompt="Tap to open your camera — photograph each item one by one, then hit Find Best Prices"
-          dropzoneSubtext="One photo per shelf label — we'll read the brand, size, and store price"
-          files={shelfFiles}
-          previews={shelfPreviews}
+          emoji="📄"
+          label="Photograph your receipt"
+          subtext="Just got back from shopping? Photo your receipt and we'll show you what to order on Amazon instead — cheaper."
+          dropzonePrompt="Tap to upload your receipt photo — then hit Find Best Prices"
+          dropzoneSubtext="We'll read every pantry item, what you paid, and find cheaper options"
+          files={receiptFiles}
+          previews={receiptPreviews}
           loading={loading}
-          isDragging={dragTarget === "shelf"}
-          inputRef={shelfInputRef}
+          isDragging={dragTarget === "receipt"}
+          inputRef={receiptInputRef}
           primary
-          onCapture={(files) => void captureFiles("shelf", files)}
-          onRemove={(i) => removeImage("shelf", i)}
-          onDragOver={(e) => { e.preventDefault(); setDragTarget("shelf"); }}
+          onCapture={(files) => void captureFiles("receipt", files)}
+          onRemove={(i) => removeImage("receipt", i)}
+          onDragOver={(e) => { e.preventDefault(); setDragTarget("receipt"); }}
           onDragLeave={(e) => { e.preventDefault(); setDragTarget(null); }}
           onDrop={(e) => {
             e.preventDefault();
             setDragTarget(null);
-            void captureFiles("shelf", Array.from(e.dataTransfer.files ?? []));
+            void captureFiles("receipt", Array.from(e.dataTransfer.files ?? []));
           }}
         />
       </div>
+
+      {/* Divider */}
+      <div className="flex items-center gap-3">
+        <div className="flex-1 h-px bg-[#1e3050]" />
+        <span className="text-[#475569] text-xs uppercase tracking-widest">or</span>
+        <div className="flex-1 h-px bg-[#1e3050]" />
+      </div>
+
+      {/* Option 2: Snap shelf labels (secondary) */}
+      <PhotoCaptureZone
+        emoji="📷"
+        label="Snap shelf labels"
+        subtext="In the store? Snap each shelf label to see if it's cheaper on Amazon or Walmart"
+        dropzonePrompt="Tap to open your camera — photograph each item one by one, then hit Find Best Prices"
+        dropzoneSubtext="One photo per shelf label — we'll read the brand, size, and store price"
+        files={shelfFiles}
+        previews={shelfPreviews}
+        loading={loading}
+        isDragging={dragTarget === "shelf"}
+        inputRef={shelfInputRef}
+        onCapture={(files) => void captureFiles("shelf", files)}
+        onRemove={(i) => removeImage("shelf", i)}
+        onDragOver={(e) => { e.preventDefault(); setDragTarget("shelf"); }}
+        onDragLeave={(e) => { e.preventDefault(); setDragTarget(null); }}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragTarget(null);
+          void captureFiles("shelf", Array.from(e.dataTransfer.files ?? []));
+        }}
+      />
 
       {/* Divider */}
       <div className="flex items-center gap-3">
