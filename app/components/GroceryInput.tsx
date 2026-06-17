@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import TextReminderButton from "./TextReminderButton";
 
 type CaptureMode = "receipt" | "shelf" | "product";
 
@@ -174,10 +175,10 @@ export default function GroceryInput() {
         : "Reading your list…";
 
   return (
-    <form onSubmit={handleSubmit} className="w-full max-w-2xl mx-auto space-y-4">
+    <form onSubmit={handleSubmit} className="w-full max-w-2xl mx-auto space-y-3">
 
       {/* Option 1: Photograph receipt (primary) */}
-      <div className="rounded-2xl border border-[#22c55e]/30 bg-[#10291c]/50 p-4">
+      <div className="rounded-2xl border border-[#22c55e]/30 bg-[#10291c]/50 p-3">
         <PhotoCaptureZone
           emoji="📄"
           label="Photograph your receipt"
@@ -246,17 +247,13 @@ export default function GroceryInput() {
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="Paste your grocery list — we'll find savings on pantry staples, packaged goods, and household supplies. Fresh produce, meat, and dairy not included."
-          rows={4}
+          rows={3}
           disabled={loading}
           className="w-full rounded-xl border-2 border-[#3b5278] bg-[#0f1f3d]/60 text-[#e2e8f0] placeholder-[#475569] p-3 text-sm leading-relaxed resize-none focus:outline-none focus:ring-2 focus:ring-[#22c55e] transition disabled:opacity-50 disabled:cursor-not-allowed"
         />
-        <p className="mt-1.5 text-xs text-slate-300 px-1">
-          Works best for: canned goods, dry goods, cleaning supplies, personal care, and paper products
-        </p>
-        <p className="mt-1 text-xs text-yellow-400/70 px-1">
-          💡 Tip: The more specific, the better — include brand, size, and variant (e.g. &ldquo;Tonnino Yellowfin Tuna Fillets Olive Oil 6.7oz&rdquo;). Size matters most for accurate matches.
-        </p>
       </div>
+
+      <TextReminderButton />
 
       {error && (
         <p className="text-red-400 text-sm bg-red-900/20 border border-red-800/40 rounded-lg px-4 py-2">
@@ -329,7 +326,7 @@ function PhotoCaptureZone({
   return (
     <div>
       <div className="flex items-center gap-2 mb-1 flex-wrap">
-        <p className={primary ? "text-[#e2e8f0] text-base font-bold" : "text-white text-xs font-medium"}>
+        <p className={primary ? "text-[#e2e8f0] text-sm font-semibold" : "text-white text-xs font-medium"}>
           {emoji} {label}
         </p>
         {primary && (
@@ -338,7 +335,7 @@ function PhotoCaptureZone({
           </span>
         )}
       </div>
-      <p className={primary ? "text-[#94a3b8] text-sm mb-3" : "text-slate-300 text-xs mb-3"}>{subtext}</p>
+      <p className={primary ? "text-[#94a3b8] text-xs mb-2" : "text-slate-300 text-xs mb-2"}>{subtext}</p>
 
       {previews.length > 0 ? (
         <div className="space-y-3">
@@ -385,7 +382,7 @@ function PhotoCaptureZone({
           onDrop={onDrop}
           disabled={loading}
           className={`w-full rounded-xl border-2 text-sm flex flex-col items-center gap-2 transition disabled:opacity-50 disabled:cursor-not-allowed ${
-            primary ? "py-8" : "py-6"
+            primary ? "py-5" : "py-4"
           } ${
             isDragging
               ? "border-[#22c55e] bg-[#0f2030] text-[#22c55e]"
@@ -394,7 +391,7 @@ function PhotoCaptureZone({
               : "border-[#3b82f6]/60 bg-[#0d1b33] hover:border-[#3b82f6] hover:bg-[#0f2030] text-[#94a3b8] hover:text-[#3b82f6]"
           }`}
         >
-          <span className={primary ? "text-3xl" : "text-2xl"}>{emoji}</span>
+          <span className={primary ? "text-2xl" : "text-xl"}>{emoji}</span>
           <span className="font-medium text-center px-4">{dropzonePrompt}</span>
           <span className="text-xs text-[#475569] text-center px-4">{dropzoneSubtext}</span>
         </button>
