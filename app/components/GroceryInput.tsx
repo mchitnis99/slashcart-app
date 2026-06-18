@@ -77,6 +77,12 @@ export default function GroceryInput() {
 
     hangTightTimerRef.current = setTimeout(() => setShowHangTight(true), 2000);
 
+    void fetch("/api/submission-log", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode: photoMode ?? "text" }),
+    });
+
     try {
       let items: unknown[] = [];
       let excluded_items: unknown[] = [];
