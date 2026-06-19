@@ -162,6 +162,7 @@ export default function GroceryInput() {
       sessionStorage.setItem("slashcart_excluded", JSON.stringify(excluded_items));
       sessionStorage.setItem("slashcart_receipt_total", receipt_total != null ? String(receipt_total) : "");
       sessionStorage.setItem("slashcart_receipt_store", receipt_store ?? "");
+      sessionStorage.setItem("slashcart_mode", photoMode ?? "text");
 
       router.push("/results");
     } catch (err) {

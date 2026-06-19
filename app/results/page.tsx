@@ -174,6 +174,7 @@ function PricedItemCard({
   bulkSelected,
   onBulkToggle,
   receiptStore,
+  isTextMode,
 }: {
   item: PricedItem;
   selected: "amazon" | "walmart";
@@ -181,6 +182,7 @@ function PricedItemCard({
   bulkSelected: "single" | "bulk";
   onBulkToggle: (v: "single" | "bulk") => void;
   receiptStore?: string | null;
+  isTextMode?: boolean;
 }) {
   // Derive variant lists first so they can seed the default index matching
   const amazonVariants: AmazonVariant[] = item.amazon.candidates?.length
@@ -223,7 +225,17 @@ function PricedItemCard({
   const { amazonCheapest, walmartCheapest } = getWinners({ ...item, amazon: effectiveAmazon, walmart: effectiveWalmart });
   const recommendedPrice = amazonCheapest ? effectiveAmazon.price : effectiveWalmart.price;
   const recommendedProductName = amazonCheapest ? effectiveAmazon.productName : effectiveWalmart.productName;
-  const savings = computeSavings(item.pricePaid, item.quantity, item.unit, recommendedPrice, recommendedProductName);
+  // Text-mode items have baseline prices, not real receipt prices. Raw price comparison
+  // is correct here — PPU normalization misleads when sizes differ from the baseline.
+  const savings = isTextMode
+    ? {
+        amount: recommendedPrice !== null && item.pricePaid != null && item.pricePaid > 0
+          ? item.pricePaid - recommendedPrice
+          : null,
+        approx: false,
+        lowerPrice: false,
+      }
+    : computeSavings(item.pricePaid, item.quantity, item.unit, recommendedPrice, recommendedProductName);
 
   // Hero savings line: PPU-normalized saving for the recommended (best-value) store,
   // expressed as a percentage of the shelf price, with a PPU-comparison subline.
@@ -285,19 +297,29 @@ function PricedItemCard({
               <p className="text-[#22c55e] text-lg font-bold leading-tight mt-1">
                 Save {heroPct}% on {heroStoreName}
               </p>
-              {shelfPpu !== null && heroPPU !== null && heroUnit && (
+              {isTextMode ? (
                 <p className="text-[#94a3b8] text-xs mt-0.5">
-                  Store price ${shelfPpu.toFixed(2)}/{item.unit} → {heroStoreName} ${heroPPU.toFixed(2)}/{heroUnit.unit}
+                  Typical ${item.pricePaid.toFixed(2)} → {heroStoreName} ${recommendedPrice!.toFixed(2)}
                 </p>
+              ) : (
+                shelfPpu !== null && heroPPU !== null && heroUnit && (
+                  <p className="text-[#94a3b8] text-xs mt-0.5">
+                    Store price ${shelfPpu.toFixed(2)}/{item.unit} → {heroStoreName} ${heroPPU.toFixed(2)}/{heroUnit.unit}
+                  </p>
+                )
               )}
               <p className="text-[#475569] text-xs mt-0.5">
-                In store you&apos;ll pay ${item.pricePaid.toFixed(2)}{receiptStore ? ` at ${receiptStore}` : ""}
+                {isTextMode
+                  ? `Typical grocery price $${item.pricePaid.toFixed(2)}`
+                  : `In store you'll pay $${item.pricePaid.toFixed(2)}${receiptStore ? ` at ${receiptStore}` : ""}`}
               </p>
             </>
           ) : (
             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
               <span className="text-[#475569] text-xs">
-                You paid ${item.pricePaid.toFixed(2)}{receiptStore ? ` at ${receiptStore}` : ""}
+                {isTextMode
+                  ? `Typical $${item.pricePaid.toFixed(2)}`
+                  : `You paid $${item.pricePaid.toFixed(2)}${receiptStore ? ` at ${receiptStore}` : ""}`}
               </span>
               {recommendedPrice !== null && (
                 savings.lowerPrice
@@ -619,6 +641,7 @@ export default function ResultsPage() {
   const [bulkSelections, setBulkSelections] = useState<Record<number, "single" | "bulk">>({});
   const [receiptTotal, setReceiptTotal] = useState<number | null>(null);
   const [receiptStore, setReceiptStore] = useState<string | null>(null);
+  const [submissionMode, setSubmissionMode] = useState<string>("text");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -630,8 +653,10 @@ export default function ResultsPage() {
 
     const rawReceiptTotal = sessionStorage.getItem("slashcart_receipt_total");
     const rawReceiptStore = sessionStorage.getItem("slashcart_receipt_store");
+    const rawMode = sessionStorage.getItem("slashcart_mode");
     if (rawReceiptTotal) { const n = parseFloat(rawReceiptTotal); if (!isNaN(n)) setReceiptTotal(n); }
     if (rawReceiptStore) setReceiptStore(rawReceiptStore);
+    if (rawMode) setSubmissionMode(rawMode);
 
     const raw = sessionStorage.getItem("slashcart_items");
     if (!raw) {
@@ -699,6 +724,7 @@ export default function ResultsPage() {
 
   const allLoaded = totals !== null;
   const round = (n: number) => Math.round(n * 100) / 100;
+  const isTextMode = submissionMode === "text";
 
   // Show split-cart banner when at least one item is recommended on each store
   const showSplitBanner = allLoaded && (() => {
@@ -783,6 +809,19 @@ export default function ResultsPage() {
         })
         .filter(({ savings }) => savings.amount !== null && savings.amount > 0)
     : [];
+  // For text-mode items, savings = raw price difference (baseline vs. online price).
+  // PPU normalization is misleading when the user typed a name without specifying a size.
+  const textSavingsEntries = isTextMode && allLoaded
+    ? (pricedItems.filter(Boolean) as PricedItem[]).map((item) => {
+        const { amazonCheapest } = getWinners(item);
+        const recPrice = amazonCheapest ? item.amazon.price : item.walmart.price;
+        const amount = recPrice !== null && item.pricePaid != null && item.pricePaid > 0
+          ? item.pricePaid - recPrice
+          : null;
+        return { item, amount };
+      }).filter(({ amount }) => amount !== null && amount > 0)
+    : [];
+
   const pantryReceiptTotal = allLoaded
     ? round((pricedItems.filter(Boolean) as PricedItem[]).reduce(
         (s, item) => s + (item.pricePaid && item.pricePaid > 0 ? item.pricePaid : 0), 0
@@ -813,7 +852,22 @@ export default function ResultsPage() {
         </p>
       )}
 
-      {allLoaded && pantryReceiptTotal > 0 ? (
+      {allLoaded && isTextMode ? (
+        <div className="mb-5 rounded-xl bg-[#0d2e1a] border border-[#22c55e]/40 px-5 py-4">
+          <p className="text-[#94a3b8] text-sm">
+            We compared{" "}
+            <span className="text-[#e2e8f0] font-semibold">{totalCount}</span>
+            {" "}pantry item{totalCount !== 1 ? "s" : ""} across Amazon and Walmart.
+          </p>
+          {textSavingsEntries.length > 0 && (
+            <p className="text-[#94a3b8] text-sm mt-1">
+              Found lower prices on{" "}
+              <span className="text-[#22c55e] font-semibold">{textSavingsEntries.length}</span>
+              {" "}of them.
+            </p>
+          )}
+        </div>
+      ) : allLoaded && pantryReceiptTotal > 0 ? (
         <div className="mb-5 rounded-xl bg-[#0d2e1a] border border-[#22c55e]/40 px-5 py-5">
           <div className="mb-4 space-y-1">
             <p className="text-[#94a3b8] text-sm">
@@ -900,6 +954,7 @@ export default function ResultsPage() {
                 bulkSelected={bulkSelections[i] ?? "single"}
                 onBulkToggle={(v) => setBulkSelections((prev) => ({ ...prev, [i]: v }))}
                 receiptStore={receiptStore}
+                isTextMode={isTextMode}
               />
             : <SkeletonCard key={i} {...groceryItem} />;
         })}
