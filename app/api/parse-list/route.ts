@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { findBaselinePrice } from "@/lib/baseline-matcher";
 
 const client = new Anthropic();
 
@@ -59,13 +60,29 @@ Example: {"items":[{"name":"Goya organic chickpeas","quantity":15,"unit":"oz","p
   const systemPrompt = mode === "product" ? productLabelPrompt : mode === "shelf" ? shelfLabelPrompt : `You are a grocery list parser. Extract grocery items from the user's input, classify each as "pantry_staple" or "fresh", and return a JSON object.
 
 Pantry staples: canned goods, dry goods (pasta, rice, flour, oats), cereals, snacks, cleaning products, paper goods, oils, condiments, spices, beverages, frozen foods, packaged/processed foods.
-Fresh items: meat, poultry, fish/seafood, fresh produce (fruits and vegetables), dairy, deli, bakery.
 
-Each item must have:
+Fresh items (EXCLUDE from items, add to excluded_items): fresh fruits and vegetables, fresh meat, fresh poultry, fresh fish and seafood, fresh deli items, fresh bakery items, dairy (milk, eggs, fresh cheese, yogurt, butter).
+
+CRITICAL FRESH PRODUCE RULE: If an item is clearly fresh produce, fresh meat, fresh fish, or fresh bakery, you MUST exclude it — even if a packaged equivalent exists. Do NOT substitute or approximate:
+- "apples" → excluded (do NOT convert to applesauce or apple juice)
+- "chicken breast" → excluded (do NOT convert to canned chicken or Tyson frozen chicken)
+- "salmon fillet" → excluded (do NOT convert to canned salmon)
+- "sourdough bread" (fresh bakery loaf) → excluded (do NOT convert to packaged sandwich bread)
+- "bananas", "spinach", "broccoli", "strawberries", "tomatoes" → all excluded
+When in doubt about whether something is fresh vs. packaged, exclude it.
+
+Each pantry_staple item in "items" must have:
 - name: string (see brand name rules below)
 - quantity: number (numeric value only, default 1 if unclear)
 - unit: string (e.g. "lbs", "oz", "gallon", "dozen", "pack", "count" — use "count" if no unit specified)
 - pricePaid: number | null — ONLY when parsing a receipt image with a visible price for that line item. Set to null or omit when parsing a typed list or when no price is visible for the item.
+
+Each excluded item in "excluded_items" must have:
+- name: string
+- quantity: number
+- unit: string
+- pricePaid: number | null
+- reason: "fresh produce — not available on Amazon or Walmart grocery"
 
 The input is from a grocery store receipt. The store name (e.g. "Stop & Shop", "Whole Foods", "Walmart", "Kroger", "Safeway") will appear on the receipt but is NEVER a brand name for any item. Never include the store name as part of any item name.
 
@@ -79,11 +96,11 @@ Brand name rules — follow these exactly:
 7. The word "butter" should only appear in an item name if the product is literally butter or a butter substitute. Do not append "butter" to oil products — "avocado oil" is not "avocado oil butter".
 8. If an item has a negative price (from a coupon, discount, rebate, or return line on the receipt), set pricePaid to null — never use negative values for pricePaid.
 9. If the same product appears multiple times on a receipt (e.g. as a purchase and then a coupon/discount for the same item), only include it once — use the net price if available (purchase price minus discount), otherwise use the purchase price. Do not create separate line items for coupons, discounts, or returns of items already listed.
-9. When an item is a store brand (e.g. "ShopRite oats", "Kirkland olive oil", "Great Value flour", "Trader Joe's granola"), strip the store brand name and return only the generic product name (e.g. "old fashioned oats", "olive oil", "all purpose flour", "granola"). We will find the best equivalent across Amazon and Walmart — a generic search returns better results than a store-brand-specific search.
+10. When an item is a store brand (e.g. "ShopRite oats", "Kirkland olive oil", "Great Value flour", "Trader Joe's granola"), strip the store brand name and return only the generic product name (e.g. "old fashioned oats", "olive oil", "all purpose flour", "granola"). We will find the best equivalent across Amazon and Walmart — a generic search returns better results than a store-brand-specific search.
 
 Return a JSON object with:
 - items: pantry_staple items only
-- excluded_items: fresh items only
+- excluded_items: fresh items only (each with a reason field)
 - receiptTotal: number | null — the grand total shown on the receipt, if visible (null otherwise)
 - receiptStore: string | null — the store name from the receipt header, if visible (null otherwise)
 
@@ -92,10 +109,10 @@ Rules:
 - Return ONLY valid JSON — no markdown, no explanation
 
 Example output (receipt image):
-{"items":[{"name":"King Arthur bread flour","quantity":1,"unit":"lbs","pricePaid":5.99},{"name":"Filippo Berio extra virgin olive oil","quantity":1,"unit":"count","pricePaid":8.49}],"excluded_items":[{"name":"chicken breast","quantity":2,"unit":"lbs","pricePaid":12.00}],"receiptTotal":127.43,"receiptStore":"Stop & Shop"}
+{"items":[{"name":"King Arthur bread flour","quantity":1,"unit":"lbs","pricePaid":5.99},{"name":"Filippo Berio extra virgin olive oil","quantity":1,"unit":"count","pricePaid":8.49}],"excluded_items":[{"name":"chicken breast","quantity":2,"unit":"lbs","pricePaid":12.00,"reason":"fresh produce — not available on Amazon or Walmart grocery"},{"name":"bananas","quantity":3,"unit":"lbs","pricePaid":1.89,"reason":"fresh produce — not available on Amazon or Walmart grocery"}],"receiptTotal":127.43,"receiptStore":"Stop & Shop"}
 
 Example output (typed list):
-{"items":[{"name":"King Arthur bread flour","quantity":1,"unit":"lbs"},{"name":"Filippo Berio extra virgin olive oil","quantity":1,"unit":"count"}],"excluded_items":[{"name":"chicken breast","quantity":2,"unit":"lbs"}],"receiptTotal":null,"receiptStore":null}`;
+{"items":[{"name":"King Arthur bread flour","quantity":1,"unit":"lbs"},{"name":"Filippo Berio extra virgin olive oil","quantity":1,"unit":"count"}],"excluded_items":[{"name":"chicken breast","quantity":2,"unit":"lbs","reason":"fresh produce — not available on Amazon or Walmart grocery"}],"receiptTotal":null,"receiptStore":null}`;
 
   const userContent: Anthropic.MessageParam["content"] = [];
 
@@ -142,7 +159,7 @@ Example output (typed list):
       );
     }
 
-    type ParsedItem = { name: string; quantity: number; unit: string; pricePaid?: number | null };
+    type ParsedItem = { name: string; quantity: number; unit: string; pricePaid?: number | null; reason?: string };
     type ParsedShape = {
       items?: ParsedItem[];
       excluded_items?: ParsedItem[];
@@ -179,6 +196,20 @@ Example output (typed list):
     const excludedItems = Array.isArray(parsed) ? [] : (parsed.excluded_items ?? []);
     const receiptTotal = Array.isArray(parsed) ? null : (parsed.receiptTotal ?? null);
     const receiptStore = Array.isArray(parsed) ? null : (parsed.receiptStore ?? null);
+
+    // Enrich typed-list items with baseline prices so the results page can compute PPU savings
+    if (!image) {
+      for (const item of items) {
+        if (item.pricePaid == null) {
+          const baseline = findBaselinePrice(item.name);
+          if (baseline) {
+            item.pricePaid = baseline.typical_price;
+            item.quantity = baseline.size_value;
+            item.unit = baseline.unit;
+          }
+        }
+      }
+    }
 
     return Response.json({ items, excluded_items: excludedItems, receipt_total: receiptTotal, receipt_store: receiptStore });
   } catch (err) {

@@ -67,7 +67,7 @@ export default function GroceryInput() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!text.trim() && activeFiles.length === 0) {
-      setError("Please snap a photo or type your grocery list.");
+      setError("Please type your grocery list.");
       return;
     }
     setError(null);
@@ -183,83 +183,14 @@ export default function GroceryInput() {
   return (
     <form onSubmit={handleSubmit} className="w-full max-w-2xl mx-auto space-y-3">
 
-      {/* Option 1: Photograph receipt (primary) */}
-      <div className="rounded-2xl border border-[#22c55e]/30 bg-[#10291c]/50 p-3">
-        <PhotoCaptureZone
-          emoji="📄"
-          label="Photograph your receipt"
-          subtext="Got a recent receipt handy? Take a quick pic and we'll show you where to save next time on Amazon or Walmart."
-          dropzonePrompt="Tap to upload your receipt photo — then hit Find Best Prices"
-          dropzoneSubtext="We'll read every pantry item, what you paid, and find cheaper options"
-          files={receiptFiles}
-          previews={receiptPreviews}
-          loading={loading}
-          isDragging={dragTarget === "receipt"}
-          inputRef={receiptInputRef}
-          primary
-          onCapture={(files) => void captureFiles("receipt", files)}
-          onRemove={(i) => removeImage("receipt", i)}
-          onDragOver={(e) => { e.preventDefault(); setDragTarget("receipt"); }}
-          onDragLeave={(e) => { e.preventDefault(); setDragTarget(null); }}
-          onDrop={(e) => {
-            e.preventDefault();
-            setDragTarget(null);
-            void captureFiles("receipt", Array.from(e.dataTransfer.files ?? []));
-          }}
-        />
-      </div>
-
-      {/* Divider */}
-      <div className="flex items-center gap-3">
-        <div className="flex-1 h-px bg-[#1e3050]" />
-        <span className="text-[#475569] text-xs uppercase tracking-widest">or</span>
-        <div className="flex-1 h-px bg-[#1e3050]" />
-      </div>
-
-      {/* Option 2: Snap shelf labels (secondary) */}
-      <PhotoCaptureZone
-        emoji="📷"
-        label="Snap shelf labels"
-        subtext="In the store? Snap each shelf label to see if it's cheaper on Amazon or Walmart"
-        dropzonePrompt="Tap to open your camera — photograph each item one by one, then hit Find Best Prices"
-        dropzoneSubtext="One photo per shelf label — we'll read the brand, size, and store price"
-        files={shelfFiles}
-        previews={shelfPreviews}
-        loading={loading}
-        isDragging={dragTarget === "shelf"}
-        inputRef={shelfInputRef}
-        onCapture={(files) => void captureFiles("shelf", files)}
-        onRemove={(i) => removeImage("shelf", i)}
-        onDragOver={(e) => { e.preventDefault(); setDragTarget("shelf"); }}
-        onDragLeave={(e) => { e.preventDefault(); setDragTarget(null); }}
-        onDrop={(e) => {
-          e.preventDefault();
-          setDragTarget(null);
-          void captureFiles("shelf", Array.from(e.dataTransfer.files ?? []));
-        }}
+      <textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder="Type any grocery items — e.g. Skippy peanut butter, Heinz ketchup, Cheerios..."
+        rows={4}
+        disabled={loading}
+        className="w-full rounded-xl border-2 border-[#22c55e]/40 bg-[#0b1f0f]/60 text-[#e2e8f0] placeholder-[#475569] p-3 text-sm leading-relaxed resize-none focus:outline-none focus:ring-2 focus:ring-[#22c55e] transition disabled:opacity-50 disabled:cursor-not-allowed"
       />
-
-      <TextReminderButton />
-
-      {/* Divider */}
-      <div className="flex items-center gap-3">
-        <div className="flex-1 h-px bg-[#1e3050]" />
-        <span className="text-[#475569] text-xs uppercase tracking-widest">or</span>
-        <div className="flex-1 h-px bg-[#1e3050]" />
-      </div>
-
-      {/* Option 3: Type your list (de-emphasized) */}
-      <div>
-        <p className="text-white text-xs font-medium mb-2">✏️ Type your list</p>
-        <textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="Paste your grocery list — we'll find savings on pantry staples, packaged goods, and household supplies. Fresh produce, meat, and dairy not included."
-          rows={3}
-          disabled={loading}
-          className="w-full rounded-xl border-2 border-[#3b5278] bg-[#0f1f3d]/60 text-[#e2e8f0] placeholder-[#475569] p-3 text-sm leading-relaxed resize-none focus:outline-none focus:ring-2 focus:ring-[#22c55e] transition disabled:opacity-50 disabled:cursor-not-allowed"
-        />
-      </div>
 
       {error && (
         <p className="text-red-400 text-sm bg-red-900/20 border border-red-800/40 rounded-lg px-4 py-2">
@@ -278,12 +209,14 @@ export default function GroceryInput() {
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z" />
             </svg>
-            {loadingLabel}
+            Reading your list…
           </>
         ) : (
           "Find Best Prices →"
         )}
       </button>
+
+      <TextReminderButton />
 
       {showHangTight && (
         <p className="text-[#475569] text-xs text-center animate-pulse">
